@@ -1,24 +1,18 @@
 from elastica._calculus import _isnan_check
 from elastica.timestepper import extend_stepper_interface
 from elastica import *
-from elastica._elastica_numba._rod._ribbon1D import Ribbon1D
-from elastica._elastica_numba._rod._linear_ribbon1D import LinearRibbon1D
+from elastica.rod.ribbon1D import Ribbon1D
+from elastica.rod.linear_ribbon1D import LinearRibbon1D
 
-from Cases.arm_function import(
-    DampingFilterBC,
-    ExponentialDampingBC,
-    DampingFilterBCRingRod,)
 
 from elastica._linalg import _batch_norm
 from elastica._linalg import _batch_cross
 
-from Cases.post_processing import (plot_video_with_surface,plot_video_activation_muscle,)
-
+import os
 from elastica._rotations import _get_rotation_matrix
 
 from itertools import groupby
 
-from Connections import *
 import pickle
 import numpy as np
 import plotly.graph_objects as go
@@ -30,13 +24,13 @@ from elastica.src_plotting_ribbon import *
 
 
 
-class LinearRod(BaseSystemCollection, Constraints, MemoryBlockConnections, Forcing, CallBacks):
-    pass
 
+class LinearRod(BaseSystemCollection, Contact, Forcing, Constraints, CallBacks, Damping):
+    pass
 
 Rod = LinearRod()
 
-n_elem = 10
+n_elem = 50
 
 
 start = np.array([0.0, 0.0, 0.0])
@@ -48,13 +42,16 @@ width = 5
 
 base_area = width*thickness
 density = 1.017e-7
-#######################################
-nu = 2e-6
-#######################################
+#########
+nu = 3e0
+#########
 E = 2.77e1
 num_lagrange = 2e2
 poisson_ratio = 0.34
 
+w0 = (np.pi/base_length)**2*np.sqrt(E*width*thickness**3/12/(density*base_area))
+print("we have 2*w0 =", 2*w0)
+print("we have P = ", 2*np.pi/w0)
 dt = 1.0e-6
 
 s = np.linspace(0,1,n_elem+1)
@@ -78,7 +75,7 @@ directors = np.stack([d1,d2,d3],axis=0)
 
 
 origin_force = np.array([1.0e-5, 0.0, 0.0])*0
-end_force = np.array([0.0, 1.0e-2*0, 2.0e-3]) # (x,y,z)
+end_force = np.array([0.0, 2.0e-2, 2.0e-4]) # (x,y,z)
 ramp_up_time_force = 0.05
 
 origin_torque = np.array([0, 0.0, 0.0])
@@ -96,35 +93,43 @@ shearable_rod = Ribbon1D.straight_ribbon(
     density,
     youngs_modulus=E,
     shear_modulus=E*num_lagrange, # influence the shearability of the ribbon
+    poisson_ratio=0.34,
     position = position,
     directors = directors,
-    poisson_ratio=0.34,
-    nu = nu,
     #nu_for_torques=damp_coefficient*((radius_mean/radius_base)**4),
 )
+
+
 
 Rod.append(shearable_rod)
 
 
 """ Add damping """
-Rod.constrain(shearable_rod).using(
-    DampingFilterBC,
-    constrained_position_idx=(0,),
-    constrained_director_idx=(0,),
-    filter_order=5,  # 10,
+Rod.dampen(shearable_rod).using(
+    AnalyticalLinearDamper,
+    damping_constant=nu,
+    time_step=dt,
 )
+
+
+# Impact steady state !!! Add error when comparing with auto
+#Rod.dampen(shearable_rod).using(
+#         LaplaceDissipationFilter,
+#         filter_order=2,   # order of the filter (geater order means less damping)
+#    )
+
 
 
 
 """ Set up boundary conditions """
-#Rod.constrain(shearable_rod).using(
-#    GeneralConstraint,
-#    constrained_position_idx=(0,),
-#    constrained_director_idx=(0,),
-#    #translational_constraint_selector=np.array([False, True, True]),  # Allow X movement, fix Y & Z
-#    translational_constraint_selector=np.array([True, True, True]),  # Allow X movement, fix Y & Z
-#    rotational_constraint_selector=np.array([True, True, True])  # Fix all rotations
-#)
+Rod.constrain(shearable_rod).using(
+    GeneralConstraint,
+    constrained_position_idx=(0,),
+    constrained_director_idx=(0,),
+    #translational_constraint_selector=np.array([False, True, True]),  # Allow X movement, fix Y & Z
+    translational_constraint_selector=np.array([True, True, True]),  # Allow X movement, fix Y & Z
+    rotational_constraint_selector=np.array([True, True, True])  # Fix all rotations
+)
 
 
 #Rod.constrain(shearable_rod).using(
@@ -137,10 +142,6 @@ Rod.constrain(shearable_rod).using(
 #    rotational_constraint_selector=np.array([False, False, False]) 
 #)
 
-Rod.constrain(shearable_rod).using(
-    OneEndFixedRod, constrained_position_idx=(0,), constrained_director_idx=(0,)
-)
-
 
 Rod.add_forcing_to(shearable_rod).using(
     EndpointForces, origin_force, end_force, ramp_up_time=ramp_up_time_force
@@ -149,6 +150,7 @@ Rod.add_forcing_to(shearable_rod).using(
 Rod.add_forcing_to(shearable_rod).using(
     EndpointTorques, origin_torque, end_torque, ramp_up_time=ramp_up_time_torque
 )
+
 
 class RodCallBack(CallBackBaseClass):
     """
@@ -219,3 +221,68 @@ plot_multiple_solutions(
     indices=np.linspace(1,solution_1.Index_solution.max(),50,dtype=np.int64),
     save_path="figure/run1.png" 
 )
+
+
+with open("simulation_data.pickle", 'rb') as handle:
+    pp_list_read = pickle.load(handle)
+
+
+solutions_auto = pd.read_csv('solution_auto_coupling.csv')
+
+temp1 = solutions_auto.Y
+temp2 = solutions_auto.Z 
+solutions_auto.Y = temp2
+solutions_auto.Z = temp1
+
+temp1 = solutions_auto.d1y
+temp2 = solutions_auto.d1z 
+solutions_auto.d1y = temp2
+solutions_auto.d1z = temp1
+
+temp1 = solutions_auto.d2y
+temp2 = solutions_auto.d2z 
+solutions_auto.d2y = temp2
+solutions_auto.d2z = temp1
+
+temp1 = solutions_auto.d3y
+temp2 = solutions_auto.d3z 
+solutions_auto.d3y = temp2
+solutions_auto.d3z = temp1
+
+solution_auto_unique = solutions_auto[solutions_auto.Index_solution == solutions_auto.Index_solution.max()]
+solution_elastica_unique = solution_1[solution_1.time==solution_1.time.max()]
+
+fig, ax = plt.subplots()
+
+solution_auto_unique.plot(x='s', y='X', ax=ax, label='Auto Solution', title = 'centerline X coordinate')
+solution_elastica_unique.plot(x='s', y='X', ax=ax, label='Elastica Solution')
+
+save_path="figure/X.png"
+fig.savefig(save_path, bbox_inches='tight', dpi=300)
+print(f"Plot saved to: {save_path}")
+plt.close(fig) 
+
+fig, ax = plt.subplots()
+
+solution_auto_unique.plot(x='s', y='Y', ax=ax, label='Auto Solution', title = 'centerline Y coordinate')
+solution_elastica_unique.plot(x='s', y='Y', ax=ax, label='Elastica Solution')
+
+save_path="figure/Y.png"
+fig.savefig(save_path, bbox_inches='tight', dpi=300)
+print(f"Plot saved to: {save_path}")
+plt.close(fig) 
+
+fig, ax = plt.subplots()
+
+solution_auto_unique.plot(x='s', y='Z', ax=ax, label='Auto Solution', title = 'centerline Z coordinate')
+solution_elastica_unique.plot(x='s', y='Z', ax=ax, label='Elastica Solution')
+
+save_path="figure/Z.png"
+fig.savefig(save_path, bbox_inches='tight', dpi=300)
+print(f"Plot saved to: {save_path}")
+plt.close(fig) 
+
+
+print("relative error on X at the tip:", 100*abs(solution_auto_unique.X.iloc[-1]-solution_elastica_unique.X.iloc[-1])/solution_auto_unique.X.iloc[-1],"%")
+print("relative error on Y at the tip:", 100*abs(solution_auto_unique.Y.iloc[-1]-solution_elastica_unique.Y.iloc[-1])/solution_auto_unique.Y.iloc[-1],"%")
+print("relative error on Z at the tip:", 100*abs(solution_auto_unique.Z.iloc[-1]-solution_elastica_unique.Z.iloc[-1])/solution_auto_unique.Z.iloc[-1],"%")
