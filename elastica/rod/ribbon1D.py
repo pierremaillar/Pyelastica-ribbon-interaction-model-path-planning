@@ -22,8 +22,9 @@ from elastica._calculus import (
     _difference,
     _average,
 )
-from elastica.interaction import node_to_element_pos_or_vel
+
 from elastica.utils import Tolerance
+from typing import Optional
 
 position_difference_kernel = _difference
 position_average = _average
@@ -90,8 +91,6 @@ class Ribbon1D(RodBase, KnotTheory):
         density,
         volume,
         mass,
-        dissipation_constant_for_forces,
-        dissipation_constant_for_torques,
         internal_forces,
         internal_torques,
         external_forces,
@@ -109,8 +108,6 @@ class Ribbon1D(RodBase, KnotTheory):
         rest_kappa,
         internal_stress,
         internal_couple,
-        damping_forces,
-        damping_torques,
         phi,
         phi_p,
         ring_rod_flag,
@@ -133,8 +130,6 @@ class Ribbon1D(RodBase, KnotTheory):
         self.density = density
         self.volume = volume
         self.mass = mass
-        self.dissipation_constant_for_forces = dissipation_constant_for_forces
-        self.dissipation_constant_for_torques = dissipation_constant_for_torques
         self.internal_forces = internal_forces
         self.internal_torques = internal_torques
         self.external_forces = external_forces
@@ -152,8 +147,6 @@ class Ribbon1D(RodBase, KnotTheory):
         self.rest_kappa = rest_kappa
         self.internal_stress = internal_stress
         self.internal_couple = internal_couple
-        self.damping_forces = damping_forces
-        self.damping_torques = damping_torques
         self.phi = phi
         self.phi_p = phi_p
         self.ring_rod_flag = ring_rod_flag
@@ -180,7 +173,6 @@ class Ribbon1D(RodBase, KnotTheory):
         base_thickness,
         base_width,
         density,
-        nu,
         youngs_modulus,
         shear_modulus,
         poisson_ratio,
@@ -208,8 +200,6 @@ class Ribbon1D(RodBase, KnotTheory):
             density,
             volume,
             mass,
-            dissipation_constant_for_forces,
-            dissipation_constant_for_torques,
             internal_forces,
             internal_torques,
             external_forces,
@@ -227,8 +217,6 @@ class Ribbon1D(RodBase, KnotTheory):
             rest_kappa,
             internal_stress,
             internal_couple,
-            damping_forces,
-            damping_torques,
             phi,
             phi_p,
             args,
@@ -242,7 +230,6 @@ class Ribbon1D(RodBase, KnotTheory):
             base_thickness,
             base_width,
             density,
-            nu,
             youngs_modulus,
             shear_modulus,
             poisson_ratio,
@@ -268,8 +255,6 @@ class Ribbon1D(RodBase, KnotTheory):
             density,
             volume,
             mass,
-            dissipation_constant_for_forces,
-            dissipation_constant_for_torques,
             internal_forces,
             internal_torques,
             external_forces,
@@ -287,8 +272,6 @@ class Ribbon1D(RodBase, KnotTheory):
             rest_kappa,
             internal_stress,
             internal_couple,
-            damping_forces,
-            damping_torques,
             phi,
             phi_p,
             ring_rod_flag,
@@ -333,8 +316,6 @@ class Ribbon1D(RodBase, KnotTheory):
             self.bend_constants,
             self.internal_stress,
             self.velocity_collection,
-            self.dissipation_constant_for_forces,
-            self.damping_forces,
             self.internal_forces,
             self.ghost_elems_idx,
         )
@@ -358,8 +339,6 @@ class Ribbon1D(RodBase, KnotTheory):
             self.internal_couple,
             self.dilatation,
             self.dilatation_rate,
-            self.dissipation_constant_for_torques,
-            self.damping_torques,
             self.internal_torques,
             self.ghost_elems_idx,
             self.volume,
@@ -682,7 +661,7 @@ def _compute_internal_bending_twist_stresses_from_model(
 
     #Note: build for uniform ribbon (constant width, thickness, Youngs modulus)
     [[A, B, C],[ D, E, F],[ poisson_ratio, OneOver_kStar,_]] = bend_constants[:,:,0]
-    
+
     for k in range(blocksize):
         k2_temp = kappa[1, k] - rest_kappa[1, k]
         k3_temp = kappa[2, k] - rest_kappa[2, k]
@@ -782,33 +761,6 @@ def _compute_phi_and_phiprime(
     phi_p[mask_mid] = f1 * sgn_kappa2b[mask_mid] / (4 * q)
     
 
-    
-@numba.njit(cache=True)
-def _compute_damping_forces(
-    damping_forces,
-    velocity_collection,
-    dissipation_constant_for_forces,
-    lengths,
-    ghost_elems_idx,
-):
-    # Internal damping foces.
-    elemental_velocities = node_to_element_pos_or_vel(velocity_collection)
-
-    blocksize = elemental_velocities.shape[1]
-    elemental_damping_forces = np.zeros((3, blocksize))
-
-    for i in range(3):
-        for k in range(blocksize):
-            elemental_damping_forces[i, k] = (
-                dissipation_constant_for_forces[k]
-                * elemental_velocities[i, k]
-                * lengths[k]
-            )
-
-    damping_forces[:] = quadrature_kernel_for_block_structure(
-        elemental_damping_forces, ghost_elems_idx
-    )
-
 
 @numba.njit(cache=True)
 def _compute_internal_forces(
@@ -832,8 +784,6 @@ def _compute_internal_forces(
     bend_constants,
     internal_stress,
     velocity_collection,
-    dissipation_constant_for_forces,
-    damping_forces,
     internal_forces,
     ghost_elems_idx,
 ):
@@ -875,34 +825,9 @@ def _compute_internal_forces(
                 )
 
     cosserat_internal_stress /= dilatation
-
-    _compute_damping_forces(
-        damping_forces,
-        velocity_collection,
-        dissipation_constant_for_forces,
-        lengths,
-        ghost_elems_idx,
+    internal_forces[:] = difference_kernel_for_block_structure(
+        cosserat_internal_stress, ghost_elems_idx
     )
-
-    internal_forces[:] = (
-        difference_kernel_for_block_structure(cosserat_internal_stress, ghost_elems_idx)
-        - damping_forces
-    )
-
-
-@numba.njit(cache=True)
-def _compute_damping_torques(
-    damping_torques, omega_collection, dissipation_constant_for_torques, lengths
-):
-    blocksize = damping_torques.shape[1]
-    for i in range(3):
-        for k in range(blocksize):
-            damping_torques[i, k] = (
-                dissipation_constant_for_torques[k]
-                * omega_collection[i, k]
-                * lengths[k]
-            )
-
 
 @numba.njit(cache=True)
 def _compute_internal_torques(
@@ -923,8 +848,6 @@ def _compute_internal_torques(
     internal_couple,
     dilatation,
     dilatation_rate,
-    dissipation_constant_for_torques,
-    damping_torques,
     internal_torques,
     ghost_voronoi_idx,
     volume,
@@ -949,14 +872,14 @@ def _compute_internal_torques(
         phi,
         phi_p,
     )
-    # # Compute dilatation rate when needed, dilatation itself is done before
-    # # in internal_stresses
-    # _compute_dilatation_rate(
-    #     position_collection, velocity_collection, lengths, rest_lengths, dilatation_rate
-    # )
+     # Compute dilatation rate when needed, dilatation itself is done before
+    # in internal_stresses
+    _compute_dilatation_rate(
+        position_collection, velocity_collection, lengths, rest_lengths, dilatation_rate
+    )
 
     # FIXME: change memory overload instead for the below calls!
-    voronoi_dilatation_inv_cube_cached = 1.0 / voronoi_dilatation**3
+    voronoi_dilatation_inv_cube_cached = 1.0 / voronoi_dilatation ** 3
     # Delta(\tau_L / \Epsilon^3)
     bend_twist_couple_2D = difference_kernel_for_block_structure(
         internal_couple * voronoi_dilatation_inv_cube_cached, ghost_voronoi_idx
@@ -991,10 +914,6 @@ def _compute_internal_torques(
     # (J \omega_L / e^2) . (de/dt)
     unsteady_dilatation = J_omega_upon_e * dilatation_rate / dilatation
 
-    _compute_damping_torques(
-        damping_torques, omega_collection, dissipation_constant_for_torques, lengths
-    )
-
     blocksize = internal_torques.shape[1]
     for i in range(3):
         for k in range(blocksize):
@@ -1004,7 +923,6 @@ def _compute_internal_torques(
                 + shear_stretch_couple[i, k]
                 + lagrangian_transport[i, k]
                 + unsteady_dilatation[i, k]
-                - damping_torques[i, k]
             )
 
 

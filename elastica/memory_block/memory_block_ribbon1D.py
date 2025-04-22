@@ -227,14 +227,12 @@ class MemoryBlockRibbon1D(
         # Things in nodes that are vectors
         #             0 ("position_collection", float64[:, :]),
         #             1 ("internal_forces", float64[:, :]),
-        #             2 ("external_forces", float64[:, :]),
-        #             3 ("damping_forces", float64[:, :]),
+        #             2 ("external_forces", float64[:, :]),,
         # 6 in total
         map_vector_dofs_in_rod_nodes = {
             "position_collection": 0,
             "internal_forces": 1,
             "external_forces": 2,
-            "damping_forces": 3,
         }
         self.vector_dofs_in_rod_nodes = np.zeros(
             (len(map_vector_dofs_in_rod_nodes), 3 * self.n_nodes)
@@ -296,10 +294,8 @@ class MemoryBlockRibbon1D(
             #"rest_area": 6,
             "dilatation": 6,
             "dilatation_rate": 7,
-            "dissipation_constant_for_forces": 8,
-            "dissipation_constant_for_torques": 9,
-            "phi": 10,
-            "phi_p": 11,
+            "phi": 8,
+            "phi_p": 9,
         }
         self.scalar_dofs_in_rod_elems = np.zeros(
             (len(map_scalar_dofs_in_rod_elems), self.n_elems)
@@ -328,16 +324,14 @@ class MemoryBlockRibbon1D(
         #             2 ("rest_sigma", float64[:, :]),
         #             3 ("internal_torques", float64[:, :]),
         #             4 ("external_torques", float64[:, :]),
-        #             5 ("damping_torques", float64[:, :]),
-        #             6 ("internal_stress", float64[:, :]),
+        #             5 ("internal_stress", float64[:, :]),
         map_vector_dofs_in_rod_elems = {
             "tangents": 0,
             "sigma": 1,
             "rest_sigma": 2,
             "internal_torques": 3,
             "external_torques": 4,
-            "damping_torques": 5,
-            "internal_stress": 6,
+            "internal_stress": 5,
         }
         self.vector_dofs_in_rod_elems = np.zeros(
             (len(map_vector_dofs_in_rod_elems), 3 * self.n_elems)

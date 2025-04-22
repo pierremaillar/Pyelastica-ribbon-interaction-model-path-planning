@@ -17,7 +17,6 @@ def allocate(
     base_length,
     base_radius,
     density,
-    nu,
     youngs_modulus,
     poisson_ratio,
     alpha_c=4.0 / 3.0,
@@ -305,40 +304,6 @@ def allocate(
     mass = np.zeros(n_elements)
     mass[:] = density * volume
 
-    # Set dissipation constant or nu array
-    dissipation_constant_for_forces = np.zeros((n_elements))
-    # Check if the user input nu is valid
-    nu_temp = np.array(nu)
-    assert nu_temp.ndim < 2, (
-        "Input dissipation constant(nu) for forces shape is not correct "
-        + str(nu_temp.shape)
-        + " It should be "
-        + str(dissipation_constant_for_forces.shape)
-        + " or  single floating number "
-    )
-    dissipation_constant_for_forces[:] = nu
-    # Check if the elements of dissipation constant greater than tolerance
-    for k in range(n_elements):
-        assert dissipation_constant_for_forces[k] >= 0.0, (
-            " Dissipation constant has to be equal or greater than 0 "
-            + " Check your dissipation constant(nu) input!"
-        )
-
-    dissipation_constant_for_torques = np.zeros((n_elements))
-    if kwargs.__contains__("nu_for_torques"):
-        temp_nu_for_torques = np.array(kwargs["nu_for_torques"])
-        assert temp_nu_for_torques.ndim < 2, (
-            "Input dissipation constant(nu) for torques shape is not correct "
-            + str(temp_nu_for_torques.shape)
-            + " It should be "
-            + str(dissipation_constant_for_torques.shape)
-            + " or  single floating number "
-        )
-        dissipation_constant_for_torques[:] = temp_nu_for_torques
-
-    else:
-        dissipation_constant_for_torques[:] = dissipation_constant_for_forces
-
     # Generate rest sigma and rest kappa, use user input if defined
     # set rest strains and curvature to be  zero at start
     # if found in kwargs modify (say for curved rod)
@@ -392,9 +357,6 @@ def allocate(
     internal_stress = np.zeros((3, n_elements))
     internal_couple = np.zeros((3, n_elements - 1))
 
-    damping_forces = np.zeros((3, n_elements + 1))
-    damping_torques = np.zeros((3, n_elements))
-
     return (
         n_elements,
         position,
@@ -411,8 +373,6 @@ def allocate(
         density_array,
         volume,
         mass,
-        dissipation_constant_for_forces,
-        dissipation_constant_for_torques,
         internal_forces,
         internal_torques,
         external_forces,
@@ -430,8 +390,6 @@ def allocate(
         rest_kappa,
         internal_stress,
         internal_couple,
-        damping_forces,
-        damping_torques,
         args,
         kwargs,
     )
@@ -445,7 +403,6 @@ def allocate_ring_rod(
     base_length,
     base_radius,
     density,
-    nu,
     youngs_modulus,
     poisson_ratio,
     alpha_c=4.0 / 3.0,
@@ -738,41 +695,8 @@ def allocate_ring_rod(
     # Compute mass of elements
     mass = np.zeros(n_elements + 1)
     mass[:] =  density * volume
+
     
-    # Set dissipation constant or nu array
-    dissipation_constant_for_forces = np.zeros((n_elements))
-    # Check if the user input nu is valid
-    nu_temp = np.array(nu)
-    assert nu_temp.ndim < 2, (
-        "Input dissipation constant(nu) for forces shape is not correct "
-        + str(nu_temp.shape)
-        + " It should be "
-        + str(dissipation_constant_for_forces.shape)
-        + " or  single floating number "
-    )
-    dissipation_constant_for_forces[:] = nu
-    # Check if the elements of dissipation constant greater than tolerance
-    for k in range(n_elements):
-        assert dissipation_constant_for_forces[k] >= 0.0, (
-            " Dissipation constant has to be equal or greater than 0 "
-            + " Check your dissipation constant(nu) input!"
-        )
-
-    dissipation_constant_for_torques = np.zeros((n_elements))
-    if kwargs.__contains__("nu_for_torques"):
-        temp_nu_for_torques = np.array(kwargs["nu_for_torques"])
-        assert temp_nu_for_torques.ndim < 2, (
-            "Input dissipation constant(nu) for torques shape is not correct "
-            + str(temp_nu_for_torques.shape)
-            + " It should be "
-            + str(dissipation_constant_for_torques.shape)
-            + " or  single floating number "
-        )
-        dissipation_constant_for_torques[:] = temp_nu_for_torques
-
-    else:
-        dissipation_constant_for_torques[:] = dissipation_constant_for_forces
-
     # Generate rest sigma and rest kappa, use user input if defined
     # set rest strains and curvature to be  zero at start
     # if found in kwargs modify (say for curved rod)
@@ -829,9 +753,6 @@ def allocate_ring_rod(
     internal_stress = np.zeros((3, n_elements))
     internal_couple = np.zeros((3, n_elements))
 
-    damping_forces = np.zeros((3, n_elements))
-    damping_torques = np.zeros((3, n_elements))
-
     return (
         n_elements,
         position,
@@ -848,8 +769,6 @@ def allocate_ring_rod(
         density_array,
         volume,
         mass,
-        dissipation_constant_for_forces,
-        dissipation_constant_for_torques,
         internal_forces,
         internal_torques,
         external_forces,
@@ -867,8 +786,6 @@ def allocate_ring_rod(
         rest_kappa,
         internal_stress,
         internal_couple,
-        damping_forces,
-        damping_torques,
         args,
         dict(kwargs, ring_rod_flag=True),
     )
@@ -881,7 +798,6 @@ def allocate_ribbon(
     base_thickness,
     base_width,
     density,
-    nu,
     youngs_modulus,
     shear_modulus,
     poisson_ratio,
@@ -1209,40 +1125,6 @@ def allocate_ribbon(
     mass[:-1] += 0.5 * density * volume
     mass[1:] += 0.5 * density * volume
 
-    # Set dissipation constant or nu array
-    dissipation_constant_for_forces = np.zeros((n_elements))
-    # Check if the user input nu is valid
-    nu_temp = np.array(nu)
-    assert nu_temp.ndim < 2, (
-        "Input dissipation constant(nu) for forces shape is not correct "
-        + str(nu_temp.shape)
-        + " It should be "
-        + str(dissipation_constant_for_forces.shape)
-        + " or  single floating number "
-    )
-    dissipation_constant_for_forces[:] = nu
-    # Check if the elements of dissipation constant greater than tolerance
-    for k in range(n_elements):
-        assert dissipation_constant_for_forces[k] >= 0.0, (
-            " Dissipation constant has to be equal or greater than 0 "
-            + " Check your dissipation constant(nu) input!"
-        )
-
-    dissipation_constant_for_torques = np.zeros((n_elements))
-    if kwargs.__contains__("nu_for_torques"):
-        temp_nu_for_torques = np.array(kwargs["nu_for_torques"])
-        assert temp_nu_for_torques.ndim < 2, (
-            "Input dissipation constant(nu) for torques shape is not correct "
-            + str(temp_nu_for_torques.shape)
-            + " It should be "
-            + str(dissipation_constant_for_torques.shape)
-            + " or  single floating number "
-        )
-        dissipation_constant_for_torques[:] = temp_nu_for_torques
-
-    else:
-        dissipation_constant_for_torques[:] = dissipation_constant_for_forces
-
     # Generate rest sigma and rest kappa, use user input if defined
     # set rest strains and curvature to be  zero at start
     # if found in kwargs modify (say for curved or twisted ribbon)
@@ -1296,9 +1178,6 @@ def allocate_ribbon(
     internal_stress = np.zeros((3, n_elements))
     internal_couple = np.zeros((3, n_elements - 1))
 
-    damping_forces = np.zeros((3, n_elements + 1))
-    damping_torques = np.zeros((3, n_elements))
-    
     phi = np.zeros((n_elements))
     phi_p = np.zeros((n_elements))
 
@@ -1320,8 +1199,6 @@ def allocate_ribbon(
         density_array,
         volume,
         mass,
-        dissipation_constant_for_forces,
-        dissipation_constant_for_torques,
         internal_forces,
         internal_torques,
         external_forces,
@@ -1339,8 +1216,6 @@ def allocate_ribbon(
         rest_kappa,
         internal_stress,
         internal_couple,
-        damping_forces,
-        damping_torques,
         phi,
         phi_p,
         args,
