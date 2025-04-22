@@ -1,55 +1,16 @@
 __doc__ = """Create block-structure class for collection of Cosserat rod systems."""
 import numpy as np
-from typing import Iterable
+from typing import Sequence
 
-
-def make_block_memory_metadata(n_elems_in_rods: np.ndarray) -> Iterable:
-    """
-    This function, takes number of elements of each rod as a numpy array and computes,
-    ghost nodes, elements and voronoi element indexes and numbers and returns it.
-
-    Parameters
-    ----------
-    n_elems_in_rods: ndarray
-        An integer array containing the number of elements in each of the n rod.
-
-    Returns
-    -------
-    n_elems_with_ghosts: int64
-        Total number of elements with ghost elements included. There are two ghost elements
-        between each pair of two rods adjacent in memory block.
-    ghost_nodes_idx: ndarray
-        An integer array of length n - 1 containing the indices of ghost nodes in memory block.
-    ghost_elements_idx: ndarray
-        An integer array of length 2 * (n - 1) containing the indices of ghost elements in memory block.
-    ghost_voronoi_idx: ndarray
-        An integer array of length 2 * (n - 1) containing the indices of ghost Voronoi nodes in memory block.
-    """
-
-    n_nodes_in_rods = n_elems_in_rods + 1
-    n_rods = n_elems_in_rods.shape[0]
-
-    # Gap between two rods have one ghost node
-    # n_nodes_with_ghosts = np.sum(n_nodes_in_rods) + (n_rods - 1)
-    # Gap between two rods have two ghost elements : comes out to n_nodes_with_ghosts - 1
-    n_elems_with_ghosts = np.sum(n_elems_in_rods) + 2 * (n_rods - 1)
-    # Gap between two rods have three ghost voronois : comes out to n_nodes_with_ghosts - 2
-    # n_voronoi_with_ghosts = np.sum(n_voronois_in_rods) + 3 * (n_rods - 1)
-
-    ghost_nodes_idx = np.cumsum(n_nodes_in_rods[:-1], dtype=np.int64)
-    # Add [0, 1, 2, ... n_rods-2] to the ghost_nodes idx to accommodate miscounting
-    ghost_nodes_idx += np.arange(0, n_rods - 1, dtype=np.int64)
-
-    ghost_elems_idx = np.zeros((2 * (n_rods - 1),), dtype=np.int64)
-    ghost_elems_idx[::2] = ghost_nodes_idx - 1
-    ghost_elems_idx[1::2] = ghost_nodes_idx.copy()
-
-    ghost_voronoi_idx = np.zeros((3 * (n_rods - 1),), dtype=np.int64)
-    ghost_voronoi_idx[::3] = ghost_nodes_idx - 2
-    ghost_voronoi_idx[1::3] = ghost_nodes_idx - 1
-    ghost_voronoi_idx[2::3] = ghost_nodes_idx.copy()
-
-    return n_elems_with_ghosts, ghost_nodes_idx, ghost_elems_idx, ghost_voronoi_idx
+from elastica.rod.data_structures import _RodSymplecticStepperMixin
+from elastica.rod.cosserat_rod import CosseratRod
+from elastica.rod.muscular_rod import MuscularRod
+from elastica.memory_block import (
+    _reset_scalar_ghost,
+    _synchronize_periodic_boundary_of_scalar_collection,
+    _synchronize_periodic_boundary_of_vector_collection,
+    _synchronize_periodic_boundary_of_matrix_collection,
+)
 
 
 def make_block_memory_periodic_boundary_metadata(n_elems_in_rods):
@@ -65,19 +26,6 @@ def make_block_memory_periodic_boundary_metadata(n_elems_in_rods):
 
     Returns
     -------
-    n_elems
-
-    periodic_boundary_node : numpy.ndarray
-        2D (2, n_periodic_boundary_nodes) array containing data with 'float' type. Vector containing periodic boundary
-        elements index. First dimension is the periodic boundary index, second dimension is the referenced cell index.
-
-    periodic_boundary_elems_idx : numpy.ndarray
-        2D (2, n_periodic_boundary_elems) array containing data with 'float' type. Vector containing periodic boundary
-        nodes index. First dimension is the periodic boundary index, second dimension is the referenced cell index.
-
-    periodic_boundary_voronoi_idx : numpy.ndarray
-        2D (2, n_periodic_boundary_voronoi) array containing data with 'float' type. Vector containing periodic boundary
-        voronoi index. First dimension is the periodic boundary index, second dimension is the referenced cell index.
 
     """
 
@@ -93,9 +41,7 @@ def make_block_memory_periodic_boundary_metadata(n_elems_in_rods):
     periodic_boundary_node_idx[0, 2::3] = 1
     periodic_boundary_node_idx[0, :] = np.cumsum(periodic_boundary_node_idx[0, :])
     # Add [0, 1, 2, ..., n_rods] to the periodic boundary nodes to accommodate miscounting
-    periodic_boundary_node_idx[0, :] += np.repeat(
-        np.arange(0, n_rods, dtype=np.int64), 3
-    )
+    periodic_boundary_node_idx[0, :] += np.repeat(np.arange(0, n_rods, dtype=np.int64), 3)
     # Now fill the reference node idx, to copy and correct periodic boundary nodes
     # First fill with the reference node idx of the first periodic node. This is the last node of the actual rod
     # (without ghost and periodic nodes).
@@ -153,6 +99,60 @@ def make_block_memory_periodic_boundary_metadata(n_elems_in_rods):
         periodic_boundary_elems_idx,
         periodic_boundary_voronoi_idx,
     )
+
+
+def make_block_memory_metadata(n_elems_in_rods):
+    """
+    This function, takes number of elements of each rod as an numpy array and computes,
+    ghost nodes, elements and voronoi element indexes and numbers and returns it.
+
+    Parameters
+    ----------
+    n_elems_in_rods : numpy.ndarray
+        1D (n_rods,) array containing data with 'float' type. Elements of this array contains total number
+        of elements of one rod.
+
+
+    Returns
+    -------
+
+    """
+    n_nodes_in_rods = n_elems_in_rods + 1
+    n_voronois_in_rods = n_elems_in_rods - 1
+
+    n_rods = n_elems_in_rods.shape[0]
+
+    # Gap between two rods have one ghost node
+    # n_nodes_with_ghosts = np.sum(n_nodes_in_rods) + (n_rods - 1)
+    # Gap between two rods have two ghost elements : comes out to n_nodes_with_ghosts - 1
+    n_elems_with_ghosts = np.sum(n_elems_in_rods) + 2 * (n_rods - 1)
+    # Gap between two rods have three ghost voronois : comes out to n_nodes_with_ghosts - 2
+    # n_voronoi_with_ghosts = np.sum(n_voronois_in_rods) + 3 * (n_rods - 1)
+
+    # To be nulled
+    ghost_nodes_idx = np.zeros(((n_rods - 1),), dtype=np.int64)
+    ghost_nodes_idx[:] = n_nodes_in_rods[:-1]
+    ghost_nodes_idx = np.cumsum(ghost_nodes_idx)
+    # Add [0, 1, 2, ... n_rods-2] to the ghost_nodes idx to accommodate miscounting
+    ghost_nodes_idx += np.arange(0, n_rods - 1, dtype=np.int64)
+
+    ghost_elems_idx = np.zeros((2 * (n_rods - 1),), dtype=np.int64)
+    ghost_elems_idx[::2] = n_elems_in_rods[:-1]
+    ghost_elems_idx[1::2] = 1
+    ghost_elems_idx = np.cumsum(ghost_elems_idx)
+    # Add [0, 0, 1, 1, 2, 2, ... n_rods-2, n_rods-2] to the ghost_elems idx to accommodate miscounting
+    ghost_elems_idx += np.repeat(np.arange(0, n_rods - 1, dtype=np.int64), 2)
+
+    ghost_voronoi_idx = np.zeros((3 * (n_rods - 1),), dtype=np.int64)
+    ghost_voronoi_idx[::3] = n_voronois_in_rods[:-1]
+    ghost_voronoi_idx[1::3] = 1
+    ghost_voronoi_idx[2::3] = 1
+    ghost_voronoi_idx = np.cumsum(ghost_voronoi_idx)
+    # Add [0, 0, 0, 1, 1, 1, 2, 2, 2, ... n_rods-2, n_rods-2, n_rods-2] to the ghost_voronoi idx
+    # to accommodate miscounting
+    ghost_voronoi_idx += np.repeat(np.arange(0, n_rods - 1, dtype=np.int64), 3)
+
+    return n_elems_with_ghosts, ghost_nodes_idx, ghost_elems_idx, ghost_voronoi_idx
 
 
 class MemoryBlockRodBase:

@@ -1,0 +1,8 @@
+numpy
+scipy
+matplotlib
+tqdm
+numba
+kaleido
+plotly
+pandas

@@ -25,6 +25,7 @@ from elastica.boundary_conditions import (
 from elastica.external_forces import (
     NoForces,
     EndpointForces,
+    EndpointTorques,
     GravityForces,
     UniformForces,
     UniformTorques,
@@ -88,6 +89,11 @@ from elastica.timestepper import (
     EulerForward,
     extend_stepper_interface,
 )
+
+from elastica.memory_block.memory_block_cosserat_rod import MemoryBlockCosseratRod
 from elastica.memory_block.memory_block_rigid_body import MemoryBlockRigidBody
-from elastica.memory_block.memory_block_rod import MemoryBlockCosseratRod
+from elastica.memory_block.memory_block_muscular_rod import MemoryBlockMuscularRod
+from elastica.memory_block.memory_block_ribbon1D import MemoryBlockRibbon1D
+from elastica.memory_block.memory_block_linear_ribbon1D import MemoryBlockLinearRibbon1D
+
 from elastica.restart import save_state, load_state
