@@ -15,6 +15,7 @@ from elastica.memory_block import (
 from elastica.rod.muscular_rod import MuscularRod
 from elastica.rod.ribbon1D import Ribbon1D
 from elastica.rod.linear_ribbon1D import LinearRibbon1D
+from elastica.surface import SurfaceBase
 
 def construct_memory_block_structures(systems):
     """
@@ -61,7 +62,10 @@ def construct_memory_block_structures(systems):
         elif issubclass(sys_to_be_added.__class__, RigidBodyBase):
             temp_list_for_rigid_body_systems.append(sys_to_be_added)
             temp_list_for_rigid_body_systems_idx.append(system_idx)
-
+            
+        elif issubclass(sys_to_be_added.__class__, SurfaceBase):
+            pass
+            
         else:
             raise TypeError(
                 "{0}\n"

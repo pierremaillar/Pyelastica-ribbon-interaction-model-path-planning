@@ -17,6 +17,8 @@ from elastica._contact_functions import (
     _calculate_contact_forces_rod_plane,
     _calculate_contact_forces_rod_plane_with_anisotropic_friction,
     _calculate_contact_forces_cylinder_plane,
+    _calculate_contact_forces_ribbon_sleeve,
+    _calculate_contact_torques_ribbon_sleeve,
 )
 import numpy as np
 
@@ -628,7 +630,117 @@ class RodPlaneContact(NoContact):
             system_one.external_forces,
         )
 
+class RibbonSleeveContact(NoContact):
+    """
+    This class is for applying contact forces between Ribbon and "Sleeve" type objects.
+    First system is always Ribbon and second system is always "Sleeve".
+    For more details regarding the contact module refer to
+    Eqn 4.8 of Gazzola et al. RSoS (2018).
 
+    Examples
+    --------
+    How to define contact between Ribbon and Sleeve.
+
+    >>> simulator.detect_contact_between(ribbon, sleeve).using(
+    ...    RibbonSleeveContact,
+    ...    k=1e4,
+    ...    nu=10,
+    ... )
+    """
+
+    def __init__(
+        self,
+        k: float,
+        nu: float,
+        alpha: float
+    ):
+        """
+        Parameters
+        ----------
+        k : float
+            Contact spring constant.
+        nu : float
+            Contact damping constant.
+        alpha : float
+                Ogden model constant.
+        """
+        super(RibbonSleeveContact, self).__init__()
+        self.k = k
+        self.nu = nu
+        self.alpha = alpha
+        self.surface_tol = 1e-4
+
+    def _check_systems_validity(
+        self,
+        system_one: SystemType,
+        system_two: AllowedContactType,
+    ) -> None:
+        """
+        This checks the contact order and type of a SystemType object and an AllowedContactType object.
+        For the RibbonSleeveContact class first_system should be a ribbon (RodBase) and second_system should be a Sleeve.
+        Parameters
+        ----------
+        system_one
+            SystemType
+        system_two
+            AllowedContactType
+        """
+        if not issubclass(system_one.__class__, RodBase) or not issubclass(
+            system_two.__class__, Sleeve
+        ):
+            raise TypeError(
+                "Systems provided to the contact class have incorrect order/type. \n"
+                " First system is {0} and second system is {1}. \n"
+                " First system should be a rod, second should be a plane".format(
+                    system_one.__class__, system_two.__class__
+                )
+            )
+
+    def apply_contact(self, system_one: RodType, system_two: SystemType) -> None:
+        """
+        Apply contact forces and torques between RodType object (Here a ribbon) and Sleeve object.
+
+        Parameters
+        ----------
+        system_one: object
+            Rod object.
+        system_two: object
+            Plane object.
+
+        """
+        _calculate_contact_forces_ribbon_sleeve(
+            system_two.position_collection,
+            system_two.normal_collection,
+            self.surface_tol,
+            self.k,
+            self.nu,
+            self.alpha,
+            system_one.width,
+            system_one.thikness,
+            system_one.mass,
+            system_one.position_collection,
+            system_one.velocity_collection,
+            system_one.internal_forces,
+            system_one.external_forces,
+        )
+
+        _calculate_contact_torques_ribbon_sleeve(
+            system_two.position_collection,
+            system_two.normal_collection,
+            self.surface_tol,
+            self.k,
+            self.nu,
+            self.alpha,
+            system_one.width,
+            system_one.thikness,
+            system_one.mass,
+            system_one.position_collection,
+            system_one.director_collection,
+            system_one.velocity_collection,
+            system_one.internal_forces,
+            system_one.external_forces,
+        )
+        
 class RodPlaneContactWithAnisotropicFriction(NoContact):
     """
     This class is for applying contact forces between rod-plane with friction.

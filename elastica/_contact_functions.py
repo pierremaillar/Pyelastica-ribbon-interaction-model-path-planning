@@ -568,6 +568,175 @@ def _calculate_contact_forces_rod_plane(
 
     return (_batch_norm(plane_response_force), no_contact_point_idx)
 
+@numba.njit(cache=True)
+def _calculate_contact_forces_ribbon_sleeve(
+    plane_origin,
+    plane_normal,
+    surface_tol,
+    k,
+    nu,
+    radius,
+    mass,
+    position_collection,
+    velocity_collection,
+    internal_forces,
+    external_forces,
+):
+    """
+    This function computes the plane force response on the element, in the
+    case of contact. Contact model given in Eqn 4.8 Gazzola et. al. RSoS 2018 paper
+    is used.
+
+    Parameters
+    ----------
+    system
+
+    Returns
+    -------
+    magnitude of the plane response
+    """
+
+    # Compute plane response force
+    nodal_total_forces = _batch_vector_sum(internal_forces, external_forces)
+    element_total_forces = _node_to_element_mass_or_force(nodal_total_forces)
+
+    force_component_along_normal_direction = _batch_product_i_ik_to_k(
+        plane_normal, element_total_forces
+    )
+    forces_along_normal_direction = _batch_product_i_k_to_ik(
+        plane_normal, force_component_along_normal_direction
+    )
+
+    # If the total force component along the plane normal direction is greater than zero that means,
+    # total force is pushing rod away from the plane not towards the plane. Thus, response force
+    # applied by the surface has to be zero.
+    forces_along_normal_direction[
+        ..., np.where(force_component_along_normal_direction > 0)[0]
+    ] = 0.0
+    # Compute response force on the element. Plane response force
+    # has to be away from the surface and towards the element. Thus
+    # multiply forces along normal direction with negative sign.
+    plane_response_force = -forces_along_normal_direction
+
+    # Elastic force response due to penetration
+    element_position = _node_to_element_position(position_collection)
+    distance_from_plane = _batch_product_i_ik_to_k(
+        plane_normal, (element_position - plane_origin)
+    )
+    plane_penetration = np.minimum(distance_from_plane - radius, 0.0)
+    elastic_force = -k * _batch_product_i_k_to_ik(plane_normal, plane_penetration)
+
+    # Damping force response due to velocity towards the plane
+    element_velocity = _node_to_element_velocity(
+        mass=mass, node_velocity_collection=velocity_collection
+    )
+    normal_component_of_element_velocity = _batch_product_i_ik_to_k(
+        plane_normal, element_velocity
+    )
+    damping_force = -nu * _batch_product_i_k_to_ik(
+        plane_normal, normal_component_of_element_velocity
+    )
+
+    # Compute total plane response force
+    plane_response_force_total = plane_response_force + elastic_force + damping_force
+
+    # Check if the rod elements are in contact with plane.
+    no_contact_point_idx = np.where((distance_from_plane - radius) > surface_tol)[0]
+    # If rod element does not have any contact with plane, plane cannot apply response
+    # force on the element. Thus lets set plane response force to 0.0 for the no contact points.
+    plane_response_force[..., no_contact_point_idx] = 0.0
+    plane_response_force_total[..., no_contact_point_idx] = 0.0
+
+    # Update the external forces
+    _elements_to_nodes_inplace(plane_response_force_total, external_forces)
+
+    return (_batch_norm(plane_response_force), no_contact_point_idx)
+
+
+    @numba.njit(cache=True)
+def _calculate_contact_torques_ribbon_sleeve(
+    plane_origin,
+    plane_normal,
+    surface_tol,
+    k,
+    nu,
+    radius,
+    mass,
+    position_collection,
+    velocity_collection,
+    internal_forces,
+    external_forces,
+):
+    """
+    This function computes the plane force response on the element, in the
+    case of contact. Contact model given in Eqn 4.8 Gazzola et. al. RSoS 2018 paper
+    is used.
+
+    Parameters
+    ----------
+    system
+
+    Returns
+    -------
+    magnitude of the plane response
+    """
+
+    # Compute plane response force
+    nodal_total_forces = _batch_vector_sum(internal_forces, external_forces)
+    element_total_forces = _node_to_element_mass_or_force(nodal_total_forces)
+
+    force_component_along_normal_direction = _batch_product_i_ik_to_k(
+        plane_normal, element_total_forces
+    )
+    forces_along_normal_direction = _batch_product_i_k_to_ik(
+        plane_normal, force_component_along_normal_direction
+    )
+
+    # If the total force component along the plane normal direction is greater than zero that means,
+    # total force is pushing rod away from the plane not towards the plane. Thus, response force
+    # applied by the surface has to be zero.
+    forces_along_normal_direction[
+        ..., np.where(force_component_along_normal_direction > 0)[0]
+    ] = 0.0
+    # Compute response force on the element. Plane response force
+    # has to be away from the surface and towards the element. Thus
+    # multiply forces along normal direction with negative sign.
+    plane_response_force = -forces_along_normal_direction
+
+    # Elastic force response due to penetration
+    element_position = _node_to_element_position(position_collection)
+    distance_from_plane = _batch_product_i_ik_to_k(
+        plane_normal, (element_position - plane_origin)
+    )
+    plane_penetration = np.minimum(distance_from_plane - radius, 0.0)
+    elastic_force = -k * _batch_product_i_k_to_ik(plane_normal, plane_penetration)
+
+    # Damping force response due to velocity towards the plane
+    element_velocity = _node_to_element_velocity(
+        mass=mass, node_velocity_collection=velocity_collection
+    )
+    normal_component_of_element_velocity = _batch_product_i_ik_to_k(
+        plane_normal, element_velocity
+    )
+    damping_force = -nu * _batch_product_i_k_to_ik(
+        plane_normal, normal_component_of_element_velocity
+    )
+
+    # Compute total plane response force
+    plane_response_force_total = plane_response_force + elastic_force + damping_force
+
+    # Check if the rod elements are in contact with plane.
+    no_contact_point_idx = np.where((distance_from_plane - radius) > surface_tol)[0]
+    # If rod element does not have any contact with plane, plane cannot apply response
+    # force on the element. Thus lets set plane response force to 0.0 for the no contact points.
+    plane_response_force[..., no_contact_point_idx] = 0.0
+    plane_response_force_total[..., no_contact_point_idx] = 0.0
+
+    # Update the external forces
+    _elements_to_nodes_inplace(plane_response_force_total, external_forces)
+
+    return (_batch_norm(plane_response_force), no_contact_point_idx)
+    
 
 @numba.njit(cache=True)
 def _calculate_contact_forces_rod_plane_with_anisotropic_friction(
