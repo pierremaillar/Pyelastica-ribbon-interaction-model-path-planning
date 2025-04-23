@@ -12,6 +12,7 @@ from elastica.rigidbody.rigid_body import RigidBodyBase
 from elastica.rigidbody.cylinder import Cylinder
 from elastica.rigidbody.sphere import Sphere
 from elastica.surface.plane import Plane
+from elastica.surface.sleeve import Sleeve
 from elastica.boundary_conditions import (
     ConstraintBase,
     FreeBC,
@@ -53,6 +54,7 @@ from elastica.contact_forces import (
     RodPlaneContact,
     RodPlaneContactWithAnisotropicFriction,
     CylinderPlaneContact,
+    RibbonSleeveContact,
 )
 from elastica.callback_functions import CallBackBaseClass, ExportCallBack, MyCallBack
 from elastica.dissipation import (

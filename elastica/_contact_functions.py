@@ -570,18 +570,22 @@ def _calculate_contact_forces_rod_plane(
 
 @numba.njit(cache=True)
 def _calculate_contact_forces_ribbon_sleeve(
-    plane_origin,
-    plane_normal,
+    position_collection_sleeve,
+    normal_collection_sleeve,
     surface_tol,
     k,
     nu,
-    radius,
+    alpha,
+    width,
+    thikness,
     mass,
     position_collection,
     velocity_collection,
     internal_forces,
     external_forces,
 ):
+
+
     """
     This function computes the plane force response on the element, in the
     case of contact. Contact model given in Eqn 4.8 Gazzola et. al. RSoS 2018 paper
@@ -653,20 +657,24 @@ def _calculate_contact_forces_ribbon_sleeve(
     return (_batch_norm(plane_response_force), no_contact_point_idx)
 
 
-    @numba.njit(cache=True)
+@numba.njit(cache=True)
 def _calculate_contact_torques_ribbon_sleeve(
-    plane_origin,
-    plane_normal,
+    position_collection_sleeve,
+    normal_collection_sleeve,
     surface_tol,
     k,
     nu,
-    radius,
+    alpha,
+    width,
+    thikness,
     mass,
     position_collection,
+    director_collection,
     velocity_collection,
-    internal_forces,
-    external_forces,
+    internal_torques,
+    external_torques,
 ):
+
     """
     This function computes the plane force response on the element, in the
     case of contact. Contact model given in Eqn 4.8 Gazzola et. al. RSoS 2018 paper

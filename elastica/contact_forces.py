@@ -4,6 +4,7 @@ from elastica.typing import RodType, SystemType, AllowedContactType
 from elastica.rod import RodBase
 from elastica.rigidbody import Cylinder, Sphere
 from elastica.surface import Plane
+from elastica.surface import Sleeve
 from elastica.contact_utils import (
     _prune_using_aabbs_rod_cylinder,
     _prune_using_aabbs_rod_rod,
@@ -716,7 +717,7 @@ class RibbonSleeveContact(NoContact):
             self.nu,
             self.alpha,
             system_one.width,
-            system_one.thikness,
+            system_one.thickness,
             system_one.mass,
             system_one.position_collection,
             system_one.velocity_collection,
@@ -737,8 +738,8 @@ class RibbonSleeveContact(NoContact):
             system_one.position_collection,
             system_one.director_collection,
             system_one.velocity_collection,
-            system_one.internal_forces,
-            system_one.external_forces,
+            system_one.internal_torques,
+            system_one.external_torques,
         )
         
 class RodPlaneContactWithAnisotropicFriction(NoContact):

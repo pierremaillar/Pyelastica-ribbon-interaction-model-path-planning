@@ -475,7 +475,7 @@ def process_solution_elastica(pp_list_read, step_skip, base_length):
         pp_list_read["internal_stress"], pp_list_read["internal_couple"],
         pp_list_read["curvature"], pp_list_read["sigma"], pp_list_read["dilatation"], pp_list_read["tangents"], pp_list_read["velocity"]
     ):
-        num_elements = pos.shape[1]  # Number of elements
+        num_elements = pos.shape[1]  # Number of points
         # Extend director matrix
         last_element = director[:, :, -1][:, :, np.newaxis] 
         director_extended = np.concatenate((director, last_element), axis=2)
@@ -548,3 +548,95 @@ def process_solution_elastica(pp_list_read, step_skip, base_length):
     return pd.DataFrame(rows)
 
 
+
+def sanity_check_plot(solution):
+
+    # Extra fields
+    solution["dilatation_error"] = solution["dilatation"] - 1
+    a_dot_b = solution['d3x'] * solution['tx'] + solution['d3y'] * solution['ty'] + solution['d3z'] * solution['tz']
+    norm_a = np.sqrt(solution['d3x']**2 + solution['d3y']**2 + solution['d3z']**2)
+    norm_b = np.sqrt(solution['tx']**2 + solution['ty']**2 + solution['tz']**2)
+    solution["sin_theta_txd3"] = a_dot_b / (norm_a * norm_b) - 1
+
+    solution["norm_r"] = np.sqrt(solution['X']**2 + solution['Y']**2 + solution['Z']**2)
+
+    solution_mean = solution.groupby("time").mean()
+    solution_max = solution.groupby("time").max()
+    solution_l2 = solution.groupby("time").apply(lambda df: np.sqrt((df**2).sum()))
+
+    # Additional processing for length calculation
+    solution[['dX', 'dY', 'dZ']] = solution.groupby('time')[['X', 'Y', 'Z']].diff()
+    solution['ds'] = np.sqrt(solution['dX']**2 + solution['dY']**2 + solution['dZ']**2)
+    length_by_time = abs(solution.groupby('time')['ds'].sum() - 1).reset_index(name='curve_length_minus1')
+
+    # Prepare selections
+    one_solution_diff = solution[solution['s'] == 0.0].copy()
+    one_solution_final = solution[solution['step'] == solution['step'].max()].copy()
+
+    # Prepare figure with subplots
+    fig, axes = plt.subplots(4, 2, figsize=(18, 22))
+    fig.suptitle("Sanity Check Simulation", fontsize=22, fontweight='bold')
+
+    fontdict = {'fontsize': 14}
+
+    # Subplot 1: Steady state
+    axes[0, 0].plot(solution_max.index, (solution_max['norm_r'] - solution_max['norm_r'].iloc[-1]))
+    axes[0, 0].set_title("Steady State", **fontdict)
+    axes[0, 0].set_xlabel("Time", fontsize=12)
+    axes[0, 0].set_ylabel("max|r|", fontsize=12)
+    axes[0, 0].grid(True)
+
+    # Subplot 2: Time Step
+    one_solution_diff.time.diff().reset_index(drop=True).plot(ax=axes[0, 1])
+    axes[0, 1].set_title("Time Step", **fontdict)
+    axes[0, 1].set_xlabel("Index", fontsize=12)
+    axes[0, 1].set_ylabel("dt", fontsize=12)
+    axes[0, 1].grid(True)
+
+    # Subplot 3: Dilatation vs s
+    axes[1, 0].plot(one_solution_final['s'], one_solution_final['dilatation_error'])
+    axes[1, 0].set_title("Dilatation vs s", **fontdict)
+    axes[1, 0].set_xlim(0, 1)
+    axes[1, 0].set_xlabel("s", fontsize=12)
+    axes[1, 0].set_ylabel("Dilatation Error", fontsize=12)
+    axes[1, 0].grid(True)
+
+    # Subplot 4: Shear Strain Error
+    e1 = solution_l2.e1
+    e2 = solution_l2.e2
+    e3 = solution_l2.e3
+    (np.sqrt(e1**2 + e2**2 + e3**2) / np.sqrt(solution_l2.X**2 + solution_l2.Y**2 + solution_l2.Z**2)).plot(ax=axes[1, 1], logy=True)
+    axes[1, 1].set_title("|Shear Strain| over |r| (L2)", **fontdict)
+    axes[1, 1].set_xlabel("Time", fontsize=12)
+    axes[1, 1].set_ylabel("Error", fontsize=12)
+    axes[1, 1].grid(True, which="both")
+
+    # Subplot 5: Dilatation L2
+    solution_l2.dilatation_error.iloc[2:].plot(ax=axes[2, 0], logy=True)
+    axes[2, 0].set_title("Dilatation (L2)", **fontdict)
+    axes[2, 0].set_xlabel("Time", fontsize=12)
+    axes[2, 0].set_ylabel("L2 Norm", fontsize=12)
+    axes[2, 0].grid(True, which="both")
+
+    # Subplot 6: sin(theta) tx.d3
+    solution_l2.sin_theta_txd3.plot(ax=axes[2, 1], logy=True)
+    axes[2, 1].set_title("sin(theta) tx.d3", **fontdict)
+    axes[2, 1].set_xlabel("Time", fontsize=12)
+    axes[2, 1].set_ylabel("Value", fontsize=12)
+    axes[2, 1].grid(True, which="both")
+
+    # Subplot 7: Curve Length -1
+    axes[3, 0].plot(length_by_time['time'], length_by_time['curve_length_minus1'])
+    axes[3, 0].set_title("Centerline Length -1", **fontdict)
+    axes[3, 0].set_xlabel("Time", fontsize=12)
+    axes[3, 0].set_ylabel("|Length - 1|", fontsize=12)
+    axes[3, 0].set_yscale("log")
+    axes[3, 0].grid(True, which="both")
+
+    # Leave subplot (3,1) empty
+    axes[3, 1].axis('off')
+
+    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+    plt.show()
+
+    print(f"Final stress stat:\nR1: {one_solution_final.R1.iloc[-1]:.4e}\nR2: {one_solution_final.R2.iloc[-1]:.4e}\nR3: {one_solution_final.R3.iloc[-1]:.4e}")
