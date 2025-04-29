@@ -357,7 +357,7 @@ class Ribbon1D(RodBase, KnotTheory):
         Parameters
         ----------
         time
-
+external_forces
         Returns
         -------
 

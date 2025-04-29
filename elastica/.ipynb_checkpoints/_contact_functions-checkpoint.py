@@ -569,27 +569,103 @@ def _calculate_contact_forces_rod_plane(
     return (_batch_norm(plane_response_force), no_contact_point_idx)
 
 @numba.njit(cache=True)
-def _calculate_contact_forces_ribbon_sleeve(
-    position_collection_sleeve,
-    normal_collection_sleeve,
+def _calculate_contact_forces_rod_plane_ogden(
+    plane_origin,
+    plane_normal,
     surface_tol,
     k,
     nu,
     alpha,
-    width,
-    thikness,
+    radius,
     mass,
     position_collection,
     velocity_collection,
     internal_forces,
     external_forces,
 ):
+    """
+    Compute contact forces between a rod and a plane using a hyperelastic Ogden model.
+
+    This model is based on Table 2 of:
+    David C. Lin et al. (2008), "Spherical indentation of soft matter beyond the Hertzian regime..."
+
+    Parameters
+    ----------
+    system
+    Returns
+    -------
+    magnitude_of_plane_response : ndarray
+        Norm of the contact force per element.
+    no_contact_point_idx : ndarray
+        Indices of elements not in contact.
+    """
+
+    # Compute total force per element (internal + external)
+    nodal_total_forces = _batch_vector_sum(internal_forces, external_forces)
+    element_total_forces = _node_to_element_mass_or_force(nodal_total_forces)
+
+    # Project total force onto plane normal
+    force_component_along_normal = _batch_product_i_ik_to_k(plane_normal, element_total_forces)
+    forces_along_normal = _batch_product_i_k_to_ik(plane_normal, force_component_along_normal)
+
+    # Remove repelling forces (rod pushing away from plane)
+    forces_along_normal[..., np.where(force_component_along_normal > 0)[0]] = 0.0
+    plane_response_force = -forces_along_normal
+
+    # Compute penetration depth
+    element_position = _node_to_element_position(position_collection)
+    distance_from_plane = _batch_product_i_ik_to_k(plane_normal, element_position - plane_origin)
+    plane_penetration = np.minimum(distance_from_plane - radius, 0.0)
+    a = radius**0.5*plane_penetration**0.5
+
+    # Hyperelastic contact force from Ogden model
+    stretch = 1 - 0.2 * plane_penetration / radius
+    magnitude_hyperelastic_force = (
+        40 * k / (9 * alpha * (1 - 0.5*2)) * a**2
+        * (stretch**(-alpha / 2 - 1) - stretch**(alpha - 1))
+    )
+    hyperelastic_force = _batch_product_i_k_to_ik(plane_normal, magnitude_hyperelastic_force)
+
+    # Damping force from normal velocity
+    element_velocity = _node_to_element_velocity(mass=mass, node_velocity_collection=velocity_collection)
+    normal_velocity_component = _batch_product_i_ik_to_k(plane_normal, element_velocity)
+    damping_force = -nu * _batch_product_i_k_to_ik(plane_normal, normal_velocity_component)
+
+    # Total plane response force
+    plane_response_force_total = plane_response_force + hyperelastic_force + damping_force
+
+    # Zero out forces for non-contacting elements
+    no_contact_point_idx = np.where((distance_from_plane - radius) > surface_tol)[0]
+    plane_response_force[..., no_contact_point_idx] = 0.0
+    plane_response_force_total[..., no_contact_point_idx] = 0.0
+
+    # Map element forces back to nodes
+    _elements_to_nodes_inplace(plane_response_force_total, external_forces)
+
+    return _batch_norm(plane_response_force), no_contact_point_idx
+
+@numba.njit(cache=True)    
+def _calculate_contact_forces_ribbon_sleeve(
+    position_collection_sleeve,
+    normal_collection_sleeve,
+    k,
+    poisson_ratio,
+    nu,
+    alpha,
+    width,
+    thickness,
+    lengths,
+    mass,
+    position_collection,
+    velocity_collection,
+    external_forces,
+):
 
 
     """
-    This function computes the plane force response on the element, in the
-    case of contact. Contact model given in Eqn 4.8 Gazzola et. al. RSoS 2018 paper
-    is used.
+    This function computes the surroundings Ogden type material response forces on the element, in the
+    case of contact. This model is based on Table 2 of:
+    David C. Lin et al. (2008), "Spherical indentation of soft matter beyond the Hertzian regime..."
 
     Parameters
     ----------
@@ -597,81 +673,43 @@ def _calculate_contact_forces_ribbon_sleeve(
 
     Returns
     -------
-    magnitude of the plane response
+    magnitude_of_plane_response : ndarray
+        Norm of the contact force per element.
     """
 
-    # Compute plane response force
-    nodal_total_forces = _batch_vector_sum(internal_forces, external_forces)
-    element_total_forces = _node_to_element_mass_or_force(nodal_total_forces)
-
-    force_component_along_normal_direction = _batch_product_i_ik_to_k(
-        plane_normal, element_total_forces
-    )
-    forces_along_normal_direction = _batch_product_i_k_to_ik(
-        plane_normal, force_component_along_normal_direction
-    )
-
-    # If the total force component along the plane normal direction is greater than zero that means,
-    # total force is pushing rod away from the plane not towards the plane. Thus, response force
-    # applied by the surface has to be zero.
-    forces_along_normal_direction[
-        ..., np.where(force_component_along_normal_direction > 0)[0]
-    ] = 0.0
-    # Compute response force on the element. Plane response force
-    # has to be away from the surface and towards the element. Thus
-    # multiply forces along normal direction with negative sign.
-    plane_response_force = -forces_along_normal_direction
-
-    # Elastic force response due to penetration
+    # Compute penetration depth
     element_position = _node_to_element_position(position_collection)
-    distance_from_plane = _batch_product_i_ik_to_k(
-        plane_normal, (element_position - plane_origin)
-    )
-    plane_penetration = np.minimum(distance_from_plane - radius, 0.0)
-    elastic_force = -k * _batch_product_i_k_to_ik(plane_normal, plane_penetration)
+    element_position_sleeve = _node_to_element_position(position_collection_sleeve)
+    distance_from_sleeve = _batch_dot(normal_collection_sleeve, element_position_sleeve - element_position)
 
-    # Damping force response due to velocity towards the plane
-    element_velocity = _node_to_element_velocity(
-        mass=mass, node_velocity_collection=velocity_collection
-    )
-    normal_component_of_element_velocity = _batch_product_i_ik_to_k(
-        plane_normal, element_velocity
-    )
-    damping_force = -nu * _batch_product_i_k_to_ik(
-        plane_normal, normal_component_of_element_velocity
-    )
+    
+    # Hyperelastic contact force from Ogden model
+    magnitude_hyperelastic_force = _calculate_contact_force_Ogden_model(distance_from_sleeve, k, alpha, width, poisson_ratio)*lengths/width
+    hyperelastic_force = _batch_product_k_ik_to_ik(magnitude_hyperelastic_force, normal_collection_sleeve)
 
-    # Compute total plane response force
-    plane_response_force_total = plane_response_force + elastic_force + damping_force
+    # Damping force from normal velocity
+    element_velocity = _node_to_element_velocity(mass=mass, node_velocity_collection=velocity_collection)
+    normal_velocity_component = _batch_dot(normal_collection_sleeve, element_velocity)
+    damping_force = -nu * _batch_product_k_ik_to_ik(normal_velocity_component, normal_collection_sleeve)
 
-    # Check if the rod elements are in contact with plane.
-    no_contact_point_idx = np.where((distance_from_plane - radius) > surface_tol)[0]
-    # If rod element does not have any contact with plane, plane cannot apply response
-    # force on the element. Thus lets set plane response force to 0.0 for the no contact points.
-    plane_response_force[..., no_contact_point_idx] = 0.0
-    plane_response_force_total[..., no_contact_point_idx] = 0.0
+    # Total plane response force
+    plane_response_force_total = hyperelastic_force + damping_force
 
-    # Update the external forces
+    # Map element forces back to nodes and add the plane response to the external forces
     _elements_to_nodes_inplace(plane_response_force_total, external_forces)
 
-    return (_batch_norm(plane_response_force), no_contact_point_idx)
 
 
 @numba.njit(cache=True)
 def _calculate_contact_torques_ribbon_sleeve(
-    position_collection_sleeve,
     normal_collection_sleeve,
-    surface_tol,
     k,
-    nu,
     alpha,
+    poisson_ratio,
     width,
-    thikness,
-    mass,
-    position_collection,
+    thickness,
+    lengths,
     director_collection,
-    velocity_collection,
-    internal_torques,
     external_torques,
 ):
 
@@ -688,64 +726,83 @@ def _calculate_contact_torques_ribbon_sleeve(
     -------
     magnitude of the plane response
     """
+    hyperelastic_couple_bend = np.zeros(external_torques.shape[1])
+    hyperelastic_couple_twist = np.zeros(external_torques.shape[1])
 
-    # Compute plane response force
-    nodal_total_forces = _batch_vector_sum(internal_forces, external_forces)
-    element_total_forces = _node_to_element_mass_or_force(nodal_total_forces)
+    normal_collection_ribbon = director_collection[:,0,:]
 
-    force_component_along_normal_direction = _batch_product_i_ik_to_k(
-        plane_normal, element_total_forces
-    )
-    forces_along_normal_direction = _batch_product_i_k_to_ik(
-        plane_normal, force_component_along_normal_direction
-    )
-
-    # If the total force component along the plane normal direction is greater than zero that means,
-    # total force is pushing rod away from the plane not towards the plane. Thus, response force
-    # applied by the surface has to be zero.
-    forces_along_normal_direction[
-        ..., np.where(force_component_along_normal_direction > 0)[0]
-    ] = 0.0
-    # Compute response force on the element. Plane response force
-    # has to be away from the surface and towards the element. Thus
-    # multiply forces along normal direction with negative sign.
-    plane_response_force = -forces_along_normal_direction
-
-    # Elastic force response due to penetration
-    element_position = _node_to_element_position(position_collection)
-    distance_from_plane = _batch_product_i_ik_to_k(
-        plane_normal, (element_position - plane_origin)
-    )
-    plane_penetration = np.minimum(distance_from_plane - radius, 0.0)
-    elastic_force = -k * _batch_product_i_k_to_ik(plane_normal, plane_penetration)
-
-    # Damping force response due to velocity towards the plane
-    element_velocity = _node_to_element_velocity(
-        mass=mass, node_velocity_collection=velocity_collection
-    )
-    normal_component_of_element_velocity = _batch_product_i_ik_to_k(
-        plane_normal, element_velocity
-    )
-    damping_force = -nu * _batch_product_i_k_to_ik(
-        plane_normal, normal_component_of_element_velocity
-    )
-
-    # Compute total plane response force
-    plane_response_force_total = plane_response_force + elastic_force + damping_force
-
-    # Check if the rod elements are in contact with plane.
-    no_contact_point_idx = np.where((distance_from_plane - radius) > surface_tol)[0]
-    # If rod element does not have any contact with plane, plane cannot apply response
-    # force on the element. Thus lets set plane response force to 0.0 for the no contact points.
-    plane_response_force[..., no_contact_point_idx] = 0.0
-    plane_response_force_total[..., no_contact_point_idx] = 0.0
-
-    # Update the external forces
-    _elements_to_nodes_inplace(plane_response_force_total, external_forces)
-
-    return (_batch_norm(plane_response_force), no_contact_point_idx)
+    normal_sleeve_on_Q = _batch_matvec(director_collection, normal_collection_ribbon)
     
+    # Compute sin(theta) (correspond to angle between nomral vectors) between sleeves and ribbon
+    normal_sleeve_on_Q_proj_d2d3 = normal_sleeve_on_Q -_batch_product_i_ik_to_k(np.array([1,0,0]),normal_sleeve_on_Q)*normal_sleeve_on_Q
+    normal_sleeve_on_Q_proj_d1d2 = normal_sleeve_on_Q -_batch_product_i_ik_to_k(np.array([0,0,1]),normal_sleeve_on_Q)*normal_sleeve_on_Q
+    
+    sin_bend = _batch_product_i_ik_to_k(np.array([1,0,0]),normal_sleeve_on_Q_proj_d2d3)/(_batch_norm(normal_collection_sleeve)*_batch_norm(normal_collection_ribbon))
+    sin_twist = _batch_product_i_ik_to_k(np.array([1,0,0]),normal_sleeve_on_Q_proj_d1d2)/(_batch_norm(normal_collection_sleeve)*_batch_norm(normal_collection_ribbon))
 
+
+    # Hyperelastic contact force from Ogden model. 
+    #The couple induce by contact is computed by intergrating the resulting force along the width of the ribbon.
+    #Here we use a Simpson quadrature rule with N = 10 points. We also suppose the change in length and width of the elements
+    #dont affect the integration for computation efficency
+    length = lengths[0]
+    width_c = width[0]
+    
+    x = np.linspace(-width_c/2,width_c/2,10)
+    for x_i in x:
+        plane_penetration = sin_twist*x_i
+        reponse_force = _calculate_contact_force_Ogden_model(plane_penetration, k, alpha, width, poisson_ratio)*length/width_c
+        hyperelastic_couple_twist += reponse_force*x_i/11
+        
+    x = np.linspace(-length/2,length/2,10)
+    for x_i in x:
+        plane_penetration = sin_bend*x_i
+        reponse_force = _calculate_contact_force_Ogden_model(plane_penetration, k, alpha, width, poisson_ratio)*length/width_c
+        hyperelastic_couple_bend += reponse_force*x_i/11
+        
+
+    # Total sleeve response couples
+    external_torques[1,:] += hyperelastic_couple_bend*0
+    external_torques[2,:] += hyperelastic_couple_twist*0
+
+
+@numba.njit(cache=True)
+def _calculate_contact_force_Ogden_model(
+    d,
+    k,
+    alpha,
+    r,
+    poisson_ratio,
+):
+    """
+    This function computes the Ogden type material contact force.
+    This model is based on Table 2 of:
+    David C. Lin et al. (2008), "Spherical indentation of soft matter beyond the Hertzian regime..."
+
+
+    Parameters
+    ----------
+    d : depht of indentation
+    alpha : hyperelastic constant
+    k : E_0 Young's Modulus of the material
+    r : Indentation radius
+    poisson_ratio : Poisson's ratio of the material
+
+    Returns
+    -------
+    magnitude of the material force response
+    """
+    sign = np.sign(d)
+    d = np.abs(d)
+    a = r**(0.503 - 3.97e-6*d)*d**0.498
+    scale = 40 * k / (9 * alpha * (1 - poisson_ratio ** 2))
+    factor = (1 - 0.2 * d / r)
+    magnitude_hyperelastic_force = scale * a**2 * (
+        (1 - 0.2*a/r) ** (-alpha / 2 - 1) - (1 - 0.2*a/r) ** (alpha - 1)
+    )
+    return sign*magnitude_hyperelastic_force
+        
+        
 @numba.njit(cache=True)
 def _calculate_contact_forces_rod_plane_with_anisotropic_friction(
     plane_origin,

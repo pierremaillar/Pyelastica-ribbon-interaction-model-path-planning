@@ -653,7 +653,8 @@ class RibbonSleeveContact(NoContact):
         self,
         k: float,
         nu: float,
-        alpha: float
+        alpha: float,
+        poisson_ratio: float,
     ):
         """
         Parameters
@@ -663,13 +664,15 @@ class RibbonSleeveContact(NoContact):
         nu : float
             Contact damping constant.
         alpha : float
-                Ogden model constant.
+            Ogden model constant.
+        poisson_ratio : float
+            Poisson ratio constat
         """
         super(RibbonSleeveContact, self).__init__()
         self.k = k
         self.nu = nu
         self.alpha = alpha
-        self.surface_tol = 1e-4
+        self.poisson_ratio = poisson_ratio
 
     def _check_systems_validity(
         self,
@@ -712,35 +715,30 @@ class RibbonSleeveContact(NoContact):
         _calculate_contact_forces_ribbon_sleeve(
             system_two.position_collection,
             system_two.normal_collection,
-            self.surface_tol,
             self.k,
+            self.poisson_ratio,
             self.nu,
             self.alpha,
             system_one.width,
             system_one.thickness,
+            system_one.lengths,
             system_one.mass,
             system_one.position_collection,
             system_one.velocity_collection,
-            system_one.internal_forces,
             system_one.external_forces,
         )
 
-        _calculate_contact_torques_ribbon_sleeve(
-            system_two.position_collection,
-            system_two.normal_collection,
-            self.surface_tol,
-            self.k,
-            self.nu,
-            self.alpha,
-            system_one.width,
-            system_one.thikness,
-            system_one.mass,
-            system_one.position_collection,
-            system_one.director_collection,
-            system_one.velocity_collection,
-            system_one.internal_torques,
-            system_one.external_torques,
-        )
+        #_calculate_contact_torques_ribbon_sleeve(
+        #    system_two.normal_collection,
+        #    self.k,
+        #    self.alpha,
+        #    self.poisson_ratio,
+        #    system_one.width,
+        #    system_one.thickness,
+        #    system_one.lengths,
+        #    system_one.director_collection,
+        #    system_one.external_torques,
+        #)
         
 class RodPlaneContactWithAnisotropicFriction(NoContact):
     """
