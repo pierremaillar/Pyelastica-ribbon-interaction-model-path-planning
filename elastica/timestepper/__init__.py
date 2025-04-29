@@ -2,7 +2,7 @@ __doc__ = """Timestepping utilities to be used with Rod and RigidBody classes"""
 
 
 import numpy as np
-from tqdm import tqdm
+from tqdm import trange
 from elastica.timestepper.symplectic_steppers import (
     SymplecticStepperTag,
     PositionVerlet,
@@ -71,6 +71,7 @@ def integrate(
     n_steps: int = 1000,
     restart_time: float = 0.0,
     progress_bar: bool = True,
+    time_display_up: float = 1,
     **kwargs,
 ):
     """
@@ -102,7 +103,7 @@ def integrate(
     dt = np.float64(float(final_time) / n_steps)
     time = restart_time
 
-    for i in tqdm(range(n_steps), disable=(not progress_bar)):
+    for i in trange(n_steps, disable=(not progress_bar), mininterval = time_display_up):
         time = do_step(StatefulStepper, stages_and_updates, System, time, dt)
 
     print("Final time of simulation is : ", time)
