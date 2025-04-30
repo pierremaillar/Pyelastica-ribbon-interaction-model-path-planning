@@ -646,6 +646,11 @@ class RibbonSleeveContact(NoContact):
     ...    RibbonSleeveContact,
     ...    k=1e4,
     ...    nu=10,
+    ...    alpha=-16.6,
+    ...    poisson_ration = 0.5,
+    ...    width_elem = 1e-3,
+    ...    length_elem = total_length/N_elem
+    ...    N_quad = 10,
     ... )
     """
 
@@ -655,6 +660,9 @@ class RibbonSleeveContact(NoContact):
         nu: float,
         alpha: float,
         poisson_ratio: float,
+        width_elem: float,
+        length_elem: float,
+        N_quad: int = 10,
     ):
         """
         Parameters
@@ -667,12 +675,21 @@ class RibbonSleeveContact(NoContact):
             Ogden model constant.
         poisson_ratio : float
             Poisson ratio constat
+        N_quad: int
+            Number of discretized segment for integration
         """
         super(RibbonSleeveContact, self).__init__()
         self.k = k
         self.nu = nu
         self.alpha = alpha
         self.poisson_ratio = poisson_ratio
+        self.width_elem = width_elem
+        self.length_elem = length_elem
+
+        self.x_twist = np.linspace(-width_elem/2, width_elem/2, N_quad)
+        self.w_twist = np.ones(N_quad) / N_quad
+        self.x_bend = np.linspace(-length_elem/2, length_elem/2, N_quad)
+        self.w_bend = np.ones(N_quad) / N_quad
 
     def _check_systems_validity(
         self,
@@ -728,17 +745,21 @@ class RibbonSleeveContact(NoContact):
             system_one.external_forces,
         )
 
-        #_calculate_contact_torques_ribbon_sleeve(
-        #    system_two.normal_collection,
-        #    self.k,
-        #    self.alpha,
-        #    self.poisson_ratio,
-        #    system_one.width,
-        #    system_one.thickness,
-        #    system_one.lengths,
-        #    system_one.director_collection,
-        #    system_one.external_torques,
-        #)
+        _calculate_contact_torques_ribbon_sleeve(
+            system_two.normal_collection,
+            self.k,
+            self.alpha,
+            self.poisson_ratio,
+            self.width_elem,
+            system_one.thickness,
+            self.length_elem,
+            system_one.director_collection,
+            system_one.external_torques,
+            self.x_twist, 
+            self.w_twist, 
+            self.x_bend, 
+            self.w_bend,
+        )
         
 class RodPlaneContactWithAnisotropicFriction(NoContact):
     """

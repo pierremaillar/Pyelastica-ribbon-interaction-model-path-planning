@@ -706,17 +706,19 @@ def _calculate_contact_torques_ribbon_sleeve(
     k,
     alpha,
     poisson_ratio,
-    width,
+    width_c,
     thickness,
-    lengths,
+    length,
     director_collection,
     external_torques,
+    x_twist, w_twist, x_bend, w_bend
 ):
 
     """
-    This function computes the plane force response on the element, in the
-    case of contact. Contact model given in Eqn 4.8 Gazzola et. al. RSoS 2018 paper
-    is used.
+    This function computes the surroundings Ogden type material response couples on the element, in the
+    case of contact. This model is based on Table 2 of:
+    David C. Lin et al. (2008), "Spherical indentation of soft matter beyond the Hertzian regime..." that is integrated 
+    along the elements.
 
     Parameters
     ----------
@@ -724,47 +726,86 @@ def _calculate_contact_torques_ribbon_sleeve(
 
     Returns
     -------
-    magnitude of the plane response
+    None
     """
-    hyperelastic_couple_bend = np.zeros(external_torques.shape[1])
-    hyperelastic_couple_twist = np.zeros(external_torques.shape[1])
+    n_elements = external_torques.shape[1]
+    hyperelastic_couple_bend = np.zeros(n_elements)
+    hyperelastic_couple_twist = np.zeros(n_elements)
 
-    normal_collection_ribbon = director_collection[:,0,:]
+    normal_collection_ribbon = director_collection[0, :, :] 
+    normal_sleeve_on_Q = _batch_matvec(director_collection, normal_collection_sleeve) 
 
-    normal_sleeve_on_Q = _batch_matvec(director_collection, normal_collection_ribbon)
+    d1 = np.array([1.0, 0.0, 0.0])
+    d2 = np.array([0.0, 1.0, 0.0])
+    d3 = np.array([0.0, 0.0, 1.0])
     
-    # Compute sin(theta) (correspond to angle between nomral vectors) between sleeves and ribbon
-    normal_sleeve_on_Q_proj_d2d3 = normal_sleeve_on_Q -_batch_product_i_ik_to_k(np.array([1,0,0]),normal_sleeve_on_Q)*normal_sleeve_on_Q
-    normal_sleeve_on_Q_proj_d1d2 = normal_sleeve_on_Q -_batch_product_i_ik_to_k(np.array([0,0,1]),normal_sleeve_on_Q)*normal_sleeve_on_Q
-    
-    sin_bend = _batch_product_i_ik_to_k(np.array([1,0,0]),normal_sleeve_on_Q_proj_d2d3)/(_batch_norm(normal_collection_sleeve)*_batch_norm(normal_collection_ribbon))
-    sin_twist = _batch_product_i_ik_to_k(np.array([1,0,0]),normal_sleeve_on_Q_proj_d1d2)/(_batch_norm(normal_collection_sleeve)*_batch_norm(normal_collection_ribbon))
+    proj_d1d3 = normal_sleeve_on_Q - _batch_product_i_k_to_ik(d2, _batch_product_i_ik_to_k(d2, normal_sleeve_on_Q))
+    proj_d1d2 = normal_sleeve_on_Q - _batch_product_i_k_to_ik(d3, _batch_product_i_ik_to_k(d3, normal_sleeve_on_Q))
+
+    sin_bend = _batch_norm(_batch_vec_oneD_vec_cross(proj_d1d3, d1))
+    sin_twist = _batch_norm(_batch_vec_oneD_vec_cross(proj_d1d2, d1))
+
+    # Twist torque computation
+    penetration_twist = np.arcsin(sin_twist[:, None]) * x_twist[None, :]
+    forces_twist = _calculate_contact_force_Ogden_model_batch(
+        penetration_twist, k, alpha, width_c, poisson_ratio
+    )* length / width_c
+
+    hyperelastic_couple_twist = np.sum(
+        forces_twist * x_twist[None, :] * w_twist[None, :], axis=1
+    ) 
+
+    # Bend torque computation
+    penetration_bend = np.arcsin(sin_bend[:, None]) * x_bend[None, :]
+    forces_bend = _calculate_contact_force_Ogden_model_batch(
+        penetration_bend, k, alpha, width_c, poisson_ratio
+    ) * length / width_c
+    hyperelastic_couple_bend = np.sum(
+        forces_bend * x_bend[None, :] * w_bend[None, :], axis=1
+    )
+
+    # Accumulate into external torques
+    external_torques[1, :] += hyperelastic_couple_bend
+    external_torques[2, :] += hyperelastic_couple_twist
 
 
-    # Hyperelastic contact force from Ogden model. 
-    #The couple induce by contact is computed by intergrating the resulting force along the width of the ribbon.
-    #Here we use a Simpson quadrature rule with N = 10 points. We also suppose the change in length and width of the elements
-    #dont affect the integration for computation efficency
-    length = lengths[0]
-    width_c = width[0]
-    
-    x = np.linspace(-width_c/2,width_c/2,10)
-    for x_i in x:
-        plane_penetration = sin_twist*x_i
-        reponse_force = _calculate_contact_force_Ogden_model(plane_penetration, k, alpha, width, poisson_ratio)*length/width_c
-        hyperelastic_couple_twist += reponse_force*x_i/11
-        
-    x = np.linspace(-length/2,length/2,10)
-    for x_i in x:
-        plane_penetration = sin_bend*x_i
-        reponse_force = _calculate_contact_force_Ogden_model(plane_penetration, k, alpha, width, poisson_ratio)*length/width_c
-        hyperelastic_couple_bend += reponse_force*x_i/11
-        
 
-    # Total sleeve response couples
-    external_torques[1,:] += hyperelastic_couple_bend*0
-    external_torques[2,:] += hyperelastic_couple_twist*0
+@numba.njit(cache=True)
+def _calculate_contact_force_Ogden_model_batch(
+    d_array, k, alpha, r, poisson_ratio
+):
+    """
+    Batched Ogden-type contact force model.
 
+    Parameters
+    ----------
+    d_array : (N, M) depth of indentation for N elements and M quadrature points
+
+    Returns
+    -------
+    (N, M) array of contact forces
+    """
+    N, M = d_array.shape
+    forces = np.empty((N, M))
+
+    for i in range(N):
+        for j in range(M):
+            d = d_array[i, j]
+            sign = np.sign(d)
+            d = abs(d)
+
+            # we can use the relation dirived from FEM but only if units are m,N,... 
+            # a = r ** (0.503 - 3.97e-6 * d) * d ** 0.498
+            a = r ** 0.5 * d ** 0.5 
+            scale = 40 * k / (9 * alpha * (1 - poisson_ratio ** 2))
+            factor = (1 - 0.2 * d / r)
+            magnitude = scale * a**2 * (
+                (1 - 0.2 * a / r) ** (-alpha / 2 - 1)
+                - (1 - 0.2 * a / r) ** (alpha - 1)
+            )
+            forces[i, j] = sign * magnitude
+
+    return forces
 
 @numba.njit(cache=True)
 def _calculate_contact_force_Ogden_model(
@@ -792,15 +833,26 @@ def _calculate_contact_force_Ogden_model(
     -------
     magnitude of the material force response
     """
-    sign = np.sign(d)
-    d = np.abs(d)
-    a = r**(0.503 - 3.97e-6*d)*d**0.498
-    scale = 40 * k / (9 * alpha * (1 - poisson_ratio ** 2))
-    factor = (1 - 0.2 * d / r)
-    magnitude_hyperelastic_force = scale * a**2 * (
-        (1 - 0.2*a/r) ** (-alpha / 2 - 1) - (1 - 0.2*a/r) ** (alpha - 1)
-    )
-    return sign*magnitude_hyperelastic_force
+    shape = d.shape
+    forces = np.empty(shape)
+
+    for i in range(shape[0]):
+        d_i = d[i]
+        r_i = r[i]
+        sign = 1.0 if d_i >= 0.0 else -1.0
+        d_abs = d_i * sign
+
+        # we can use the relation dirived from FEM but only if units are m,N,... 
+        # a = r_i ** (0.503 - 3.97e-6 * d_abs) * d_abs ** 0.498
+        a = r_i ** 0.5 * d_abs ** 0.5 
+                                      
+        scale = 40.0 * k / (9.0 * alpha * (1.0 - poisson_ratio ** 2))
+        magnitude = scale * a**2 * (
+            (1.0 - 0.2 * a / r_i) ** (-alpha / 2.0 - 1.0)
+            - (1.0 - 0.2 * a / r_i) ** (alpha - 1.0)
+        )
+        forces[i] = sign * magnitude 
+    return forces
         
         
 @numba.njit(cache=True)
