@@ -648,6 +648,8 @@ def _calculate_contact_forces_rod_plane_ogden(
 def _calculate_contact_forces_ribbon_sleeve(
     position_collection_sleeve,
     normal_collection_sleeve,
+    response_force_sleeve,
+    displacement_sleeve,
     k,
     poisson_ratio,
     nu,
@@ -680,11 +682,12 @@ def _calculate_contact_forces_ribbon_sleeve(
     # Compute penetration depth
     element_position = _node_to_element_position(position_collection)
     element_position_sleeve = _node_to_element_position(position_collection_sleeve)
-    distance_from_sleeve = _batch_dot(normal_collection_sleeve, element_position_sleeve - element_position)
+    displacement_sleeve[:,:] =  element_position_sleeve - element_position
+    normal_displacement_sleeve = _batch_dot(normal_collection_sleeve, displacement_sleeve)
 
     
     # Hyperelastic contact force from Ogden model
-    magnitude_hyperelastic_force = _calculate_contact_force_Ogden_model(distance_from_sleeve, k, alpha, width, poisson_ratio)*lengths/width
+    magnitude_hyperelastic_force = _calculate_contact_force_Ogden_model(normal_displacement_sleeve, k, alpha, width, poisson_ratio)*lengths/width
     hyperelastic_force = _batch_product_k_ik_to_ik(magnitude_hyperelastic_force, normal_collection_sleeve)
 
     # Damping force from normal velocity
@@ -693,16 +696,19 @@ def _calculate_contact_forces_ribbon_sleeve(
     damping_force = -nu * _batch_product_k_ik_to_ik(normal_velocity_component, normal_collection_sleeve)
 
     # Total plane response force
-    plane_response_force_total = hyperelastic_force + damping_force
+    response_force_sleeve[:, :] = hyperelastic_force + damping_force
 
-    # Map element forces back to nodes and add the plane response to the external forces
-    _elements_to_nodes_inplace(plane_response_force_total, external_forces)
+    # Map element forces back to nodes and add the sleeve response to the external forces
+    _elements_to_nodes_inplace(response_force_sleeve, external_forces)
+
 
 
 
 @numba.njit(cache=True)
 def _calculate_contact_torques_ribbon_sleeve(
     normal_collection_sleeve,
+    response_couple_sleeve,
+    rotation_sleeve,
     k,
     alpha,
     poisson_ratio,
@@ -729,8 +735,7 @@ def _calculate_contact_torques_ribbon_sleeve(
     None
     """
     n_elements = external_torques.shape[1]
-    hyperelastic_couple_bend = np.zeros(n_elements)
-    hyperelastic_couple_twist = np.zeros(n_elements)
+    couple_local = np.zeros((3, n_elements))
 
     normal_collection_ribbon = director_collection[0, :, :] 
     normal_sleeve_on_Q = _batch_matvec(director_collection, normal_collection_sleeve) 
@@ -751,23 +756,26 @@ def _calculate_contact_torques_ribbon_sleeve(
         penetration_twist, k, alpha, width_c, poisson_ratio
     )* length / width_c
 
-    hyperelastic_couple_twist = np.sum(
-        forces_twist * x_twist[None, :] * w_twist[None, :], axis=1
-    ) 
-
+    couple_local[2, :] = np.sum(
+        forces_twist * x_twist[None, :] * w_twist[None, :], axis=1) * (- np.sign(_batch_dot(_batch_vec_oneD_vec_cross(proj_d1d2, d1)),d3))
+      
     # Bend torque computation
     penetration_bend = np.arcsin(sin_bend[:, None]) * x_bend[None, :]
     forces_bend = _calculate_contact_force_Ogden_model_batch(
         penetration_bend, k, alpha, width_c, poisson_ratio
     ) * length / width_c
-    hyperelastic_couple_bend = np.sum(
-        forces_bend * x_bend[None, :] * w_bend[None, :], axis=1
-    )
+    couple_local[1, :] = np.sum(
+        forces_bend * x_bend[None, :] * w_bend[None, :], axis=1) * (- np.sign(_batch_dot(_batch_vec_oneD_vec_cross(proj_d1d3, d1)),d2))
 
-    # Accumulate into external torques
-    external_torques[1, :] += hyperelastic_couple_bend
-    external_torques[2, :] += hyperelastic_couple_twist
 
+    # Project to lab frame 
+    couple_lab = _batch_matvec(_batch_matrix_transpose(director_collection), couple_local)
+
+    # Save results
+    response_couple_sleeve[:, :] = couple_lab
+    rotation_sleeve[1, :] = sin_bend
+    rotation_sleeve[2, :] = sin_twist
+    external_torques += couple_lab
 
 
 @numba.njit(cache=True)

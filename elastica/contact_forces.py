@@ -712,7 +712,7 @@ class RibbonSleeveContact(NoContact):
             raise TypeError(
                 "Systems provided to the contact class have incorrect order/type. \n"
                 " First system is {0} and second system is {1}. \n"
-                " First system should be a rod, second should be a plane".format(
+                " First system should be a rod, second should be a sleeve".format(
                     system_one.__class__, system_two.__class__
                 )
             )
@@ -732,6 +732,8 @@ class RibbonSleeveContact(NoContact):
         _calculate_contact_forces_ribbon_sleeve(
             system_two.position_collection,
             system_two.normal_collection,
+            system_two.response_force_sleeve,
+            system_two.displacement_sleeve,
             self.k,
             self.poisson_ratio,
             self.nu,
@@ -745,8 +747,11 @@ class RibbonSleeveContact(NoContact):
             system_one.external_forces,
         )
 
+
         _calculate_contact_torques_ribbon_sleeve(
             system_two.normal_collection,
+            system_two.response_couple_sleeve,
+            system_two.rotation_sleeve,
             self.k,
             self.alpha,
             self.poisson_ratio,
@@ -760,7 +765,8 @@ class RibbonSleeveContact(NoContact):
             self.x_bend, 
             self.w_bend,
         )
-        
+
+
 class RodPlaneContactWithAnisotropicFriction(NoContact):
     """
     This class is for applying contact forces between rod-plane with friction.

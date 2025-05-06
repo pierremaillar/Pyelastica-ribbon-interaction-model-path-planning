@@ -549,6 +549,62 @@ def process_solution_elastica(pp_list_read, step_skip, base_length):
 
 
 
+
+def process_solution_elastica_sleeve(pp_list_read, step_skip):
+    """
+    Processes solution data and converts it into a structured DataFrame.
+
+    Parameters:
+    -----------
+    pp_list_read : dict
+        Dictionary containing solution data with keys: 'response_force_sleeve', 'displacement_sleeve', 'response_couple_sleeve', 
+        'rotation_sleeve'
+    
+    step_skip : int
+        Step increment to normalize the solution index.
+
+    Returns:
+    --------
+    pandas.DataFrame
+        Processed DataFrame containing the solution data.
+    """
+    rows = []
+    j = 0
+
+    for t, step, force, displacement, couple, rotation in zip(
+        pp_list_read["time"], pp_list_read["step"],
+        pp_list_read["response_force_sleeve"], pp_list_read["displacement_sleeve"],
+        pp_list_read["response_couple_sleeve"], pp_list_read["rotation_sleeve"]
+    ):
+
+        num_elements = force.shape[1]
+        
+        # Populate rows
+        for i in range(num_elements):
+            rows.append({
+                "Index_solution": j,
+                "time": t,
+                "step": step,
+                "s": i / (num_elements - 1),
+                "response_force_X": force[0, i],
+                "response_force_Y": force[1, i],
+                "response_force_Z": force[2, i],
+                "displacement_X": displacement[0, i],
+                "displacement_Y": displacement[1, i],
+                "displacement_Z": displacement[2, i],
+                "response_couple_X": couple[0, i],
+                "response_couple_Y": couple[1, i],
+                "response_couple_Z": couple[2, i],
+                "rotation_angle_d1": np.arcsin(rotation[0, i]),
+                "rotation_angle_d2": np.arcsin(rotation[1, i]),
+                "rotation_angle_d3": np.arcsin(rotation[2, i]),
+            })
+        j+=1
+
+    return pd.DataFrame(rows)
+
+
+
 def sanity_check_plot(solution):
 
     # Extra fields
@@ -561,7 +617,7 @@ def sanity_check_plot(solution):
     solution["norm_r"] = np.sqrt(solution['X']**2 + solution['Y']**2 + solution['Z']**2)
 
     solution_mean = solution.groupby("time").mean()
-    solution_max = solution.groupby("time").max()
+    solution_max = solution.abs().groupby("time").max()
     solution_l2 = solution.groupby("time").apply(lambda df: np.sqrt((df**2).sum()))
 
     # Additional processing for length calculation

@@ -243,7 +243,7 @@ class GeneralConstraint(ConstraintBase):
 
     def __init__(
         self,
-        *fixed_data,  # These will be passed in via `.using(..., positions=(), directors=())`
+        *fixed_data, 
         translational_constraint_selector=None,
         rotational_constraint_selector=None,
         rod_frame_bool=False,
@@ -277,7 +277,7 @@ class GeneralConstraint(ConstraintBase):
                 break  
 
         if len(pos) > 0:
-            self.fixed_positions = np.array(pos).T  # Shape (3, N)
+            self.fixed_positions = np.array(pos).T.copy()  # Shape (3, N)
         else:
             self.fixed_positions = np.zeros((3, len(constrained_position_idx)))
 
@@ -345,13 +345,27 @@ class GeneralConstraint(ConstraintBase):
         rod_frame_bool,
     ):
         for i, idx in enumerate(constrained_position_idx):
-            if rod_frame_bool:
-                pos = director_collection[..., idx].copy() @ fixed_positions[..., i].copy()
+            if rod_frame_bool and 0:
+                #print("position_collection", position_collection[..., idx])
+                diff_pos = fixed_positions[..., idx] - position_collection[..., idx]
+                print("diff_pos",diff_pos)
+                diff_pos_Q = director_collection[..., idx].T.copy() @ diff_pos.copy()
+                #print("diff_pos_Q",diff_pos_Q)
+                for k in range(3):
+                    if not selector[k]:
+                        diff_pos_Q[k] = 0
+                #print("diff_pos_Q_new",diff_pos_Q)
+                diff_pos = director_collection[..., idx].copy() @ diff_pos_Q.copy()
+                #print("diff_pos_new", diff_pos)
+                position_collection[..., idx] += diff_pos
+                #print("position_collection", position_collection[..., idx])
             else:
-                pos = fixed_positions[..., i]
-            for k in range(3):
-                if selector[k]:
-                    position_collection[k, idx] = pos[k]
+                pos = fixed_positions[..., idx]
+                for k in range(3):
+                    if selector[k]:
+                        position_collection[k, idx] = pos[k]
+
+
 
     @staticmethod
     @njit(cache=True)
@@ -375,10 +389,13 @@ class GeneralConstraint(ConstraintBase):
         for idx in constrained_position_idx:
             if rod_frame_bool:
                 v_local = director_collection[..., idx].T.copy() @ velocity_collection[..., idx].copy()
+                #print("velocity_collection[..., idx]", velocity_collection[..., idx])
                 for k in range(3):
                     if selector[k]:
                         v_local[k] = 0.0
+                #print("v_local", v_local)
                 velocity_collection[..., idx] = director_collection[..., idx].copy() @ v_local.copy()
+                #print("velocity_collection[..., idx]", velocity_collection[..., idx])
             else:
                 for k in range(3):
                     if selector[k]:
@@ -394,7 +411,7 @@ class GeneralConstraint(ConstraintBase):
     ):
         for idx in constrained_director_idx:
             if rod_frame_bool:
-                omega_local = omega_collection[..., idx].copy()
+                omega_local = omega_collection[..., idx]
                 for k in range(3):
                     if selector[k]:
                         omega_local[k] = 0.0

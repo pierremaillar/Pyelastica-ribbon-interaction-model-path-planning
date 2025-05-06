@@ -653,3 +653,77 @@ class EndpointForcesSinusoidal(NoForces):
             # Update external forces
             system.external_forces[..., 0] += start_force
             system.external_forces[..., -1] += end_force
+
+
+class ControledPushForce(NoForces):
+    """
+    This class applies constant forces on the base nodes and adapt it so that the resulting force at the tip approach a given value.
+    The Force is adpated following a P-controller like behavior.
+    This class is used for the simulation of a quasi-static step in the frame of the ribbon-brain interaction project.
+
+        Attributes
+        ----------
+        target_force: numpy.ndarray
+            2D (dim, 1) array containing data with 'float' type. Both initial input force (at the base) and target (at  the tip) output force 
+            applied to first node of the rod-like object.
+        k_p: float
+            Constant of the P-controller
+
+    """
+
+    def __init__(self, target_force, k_p = 1):
+        """
+
+        Parameters
+        ----------
+        start_force: numpy.ndarray
+            2D (dim, 1) array containing data with 'float' type.
+            Force applied to first node of the rod-like object.
+        end_force: numpy.ndarray
+            2D (dim, 1) array containing data with 'float' type.
+            Force applied to last node of the rod-like object.
+        ramp_up_time: float
+            Applied forces are ramped up until ramp up time.
+
+        """
+        super(ControledPushForce, self).__init__()
+        self.target_force = target_force
+        assert k_p >= 0.0
+        self.k_p = k_p
+        
+
+    def apply_forces(self, system, time=0.0):
+        
+        self.compute_base_point_forces(
+            system.external_forces,
+            system.internal_forces,
+            system.director_collection,
+            self.target_force,
+            self.k_p,
+        )
+
+    @staticmethod
+    @njit(cache=True)
+    def compute_base_point_forces(
+        external_forces, internal_forces, director_collection, target_force, k_p
+    ):
+        """
+        Compute end point forces that are applied on the rod using numba njit decorator.
+
+        Parameters
+        ----------
+        external_forces: numpy.ndarray
+            2D (dim, blocksize) array containing data with 'float' type. External force vector.
+        start_force: numpy.ndarray
+            2D (dim, 1) array containing data with 'float' type.
+        end_force: numpy.ndarray
+            2D (dim, 1) array containing data with 'float' type.
+            Force applied to last node of the rod-like object.
+        time: float
+
+        Returns
+        -------
+
+        """
+        
+        external_forces[0, 0] = (external_forces[2,...,-1]*director_collection[...,-1] - target_force)* k_p
