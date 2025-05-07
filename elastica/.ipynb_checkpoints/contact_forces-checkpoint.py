@@ -747,11 +747,11 @@ class RibbonSleeveContact(NoContact):
             system_one.external_forces,
         )
 
-        print(system_two.response_force_sleeve)
 
         _calculate_contact_torques_ribbon_sleeve(
             system_two.normal_collection,
             system_two.response_couple_sleeve,
+            system_two.response_couple_local,
             system_two.rotation_sleeve,
             self.k,
             self.alpha,
@@ -767,9 +767,7 @@ class RibbonSleeveContact(NoContact):
             self.w_bend,
         )
 
-        print(system_two.response_couple_sleeve)
 
-        
 class RodPlaneContactWithAnisotropicFriction(NoContact):
     """
     This class is for applying contact forces between rod-plane with friction.

@@ -751,6 +751,7 @@ class RibbonSleeveContact(NoContact):
         _calculate_contact_torques_ribbon_sleeve(
             system_two.normal_collection,
             system_two.response_couple_sleeve,
+            system_two.response_couple_local,
             system_two.rotation_sleeve,
             self.k,
             self.alpha,

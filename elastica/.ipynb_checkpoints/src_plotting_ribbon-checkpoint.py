@@ -210,9 +210,9 @@ def plot_multiple_solutions(
         ('R1', 'R1'),
         ('R2', 'R2'),
         ('R3', 'R3'),
-        ('V1', 'V1'),
-        ('V2', 'V2'),
-        ('V3', 'V3'),
+        ('VX', 'VX'),
+        ('VY', 'VY'),
+        ('VZ', 'VZ'),
     ],
     save_path=None
 ):
@@ -452,7 +452,7 @@ def process_solution_elastica(pp_list_read, step_skip, base_length):
     Parameters:
     -----------
     pp_list_read : dict
-        Dictionary containing solution data with keys: 'time', 'step', 'position', 
+        DictionaR2 containing solution data with keys: 'time', 'step', 'position', 
         'directors', 'internal_stress', 'internal_couple', and 'curvature'.
     
     step_skip : int
@@ -526,9 +526,9 @@ def process_solution_elastica(pp_list_read, step_skip, base_length):
                 'R1': stress_extended[0, i],
                 'R2': stress_extended[1, i],
                 'R3': stress_extended[2, i],
-                'm1': couple_extended[2, i],
-                'm2': couple_extended[2, i],
-                'm3': couple_extended[2, i],
+                'mX': couple_extended[2, i],
+                'mY': couple_extended[2, i],
+                'mZ': couple_extended[2, i],
                 'k1': curvature_extended[2, i],
                 'k2': curvature_extended[2, i],
                 'k3': curvature_extended[2, i],
@@ -539,9 +539,9 @@ def process_solution_elastica(pp_list_read, step_skip, base_length):
                 'tx': tangents_extended[0, i], 
                 'ty': tangents_extended[1, i], 
                 'tz': tangents_extended[2, i],
-                'V1' :velocities[0,i],
-                'V2' :velocities[1,i],
-                'V3' :velocities[2,i]
+                'VX' :velocities[0,i],
+                'VY' :velocities[1,i],
+                'VZ' :velocities[2,i]
             })
         j+=1
 
@@ -614,7 +614,7 @@ def sanity_check_plot(solution):
     norm_b = np.sqrt(solution['tx']**2 + solution['ty']**2 + solution['tz']**2)
     solution["sin_theta_txd3"] = a_dot_b / (norm_a * norm_b) - 1
 
-    solution["norm_r"] = np.sqrt(solution['X']**2 + solution['Y']**2 + solution['Z']**2)
+    solution["norm_r"] = np.sqrt((solution['X']-1)**2 + solution['Y']**2 + solution['Z']**2)
 
     solution_mean = solution.groupby("time").mean()
     solution_max = solution.abs().groupby("time").max()
@@ -695,4 +695,6 @@ def sanity_check_plot(solution):
     plt.tight_layout(rect=[0, 0.03, 1, 0.95])
     plt.show()
 
-    print(f"Final stress stat:\nR1: {one_solution_final.R1.iloc[-1]:.4e}\nR2: {one_solution_final.R2.iloc[-1]:.4e}\nR3: {one_solution_final.R3.iloc[-1]:.4e}")
+    print(f"Final stress stat at s = 0:\nR1: {one_solution_final.R1.iloc[0]:.4e}\nR2: {one_solution_final.R2.iloc[0]:.4e}\nR3: {one_solution_final.R3.iloc[0]:.4e}")
+
+    print(f"Final stress stat at s = 1:\nR1: {one_solution_final.R1.iloc[-1]:.4e}\nR2: {one_solution_final.R2.iloc[-1]:.4e}\nR3: {one_solution_final.R3.iloc[-1]:.4e}")

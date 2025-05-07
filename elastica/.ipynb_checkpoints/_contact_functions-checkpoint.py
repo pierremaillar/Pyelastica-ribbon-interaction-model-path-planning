@@ -708,6 +708,7 @@ def _calculate_contact_forces_ribbon_sleeve(
 def _calculate_contact_torques_ribbon_sleeve(
     normal_collection_sleeve,
     response_couple_sleeve,
+    response_couple_local,
     rotation_sleeve,
     k,
     alpha,
@@ -734,9 +735,7 @@ def _calculate_contact_torques_ribbon_sleeve(
     -------
     None
     """
-    n_elements = external_torques.shape[1]
-    couple_local = np.zeros((3, n_elements))
-
+    
     normal_collection_ribbon = director_collection[0, :, :] 
     normal_sleeve_on_Q = _batch_matvec(director_collection, normal_collection_sleeve) 
 
@@ -747,8 +746,11 @@ def _calculate_contact_torques_ribbon_sleeve(
     proj_d1d3 = normal_sleeve_on_Q - _batch_product_i_k_to_ik(d2, _batch_product_i_ik_to_k(d2, normal_sleeve_on_Q))
     proj_d1d2 = normal_sleeve_on_Q - _batch_product_i_k_to_ik(d3, _batch_product_i_ik_to_k(d3, normal_sleeve_on_Q))
 
-    sin_bend = _batch_norm(_batch_vec_oneD_vec_cross(proj_d1d3, d1))
-    sin_twist = _batch_norm(_batch_vec_oneD_vec_cross(proj_d1d2, d1))
+    cross_bend = _batch_vec_oneD_vec_cross(proj_d1d3, d1)
+    cross_twist = _batch_vec_oneD_vec_cross(proj_d1d2, d1)
+    
+    sin_bend = _batch_norm(cross_bend)*(-np.sign(cross_bend[1]))
+    sin_twist = _batch_norm(cross_twist)*(-np.sign(cross_twist[2]))
 
     # Twist torque computation
     penetration_twist = np.arcsin(sin_twist[:, None]) * x_twist[None, :]
@@ -756,20 +758,20 @@ def _calculate_contact_torques_ribbon_sleeve(
         penetration_twist, k, alpha, width_c, poisson_ratio
     )* length / width_c
 
-    couple_local[2, :] = np.sum(
-        forces_twist * x_twist[None, :] * w_twist[None, :], axis=1) * (- np.sign(_batch_dot(_batch_vec_oneD_vec_cross(proj_d1d2, d1)),d3))
+    response_couple_local[2, :] = np.sum(
+        forces_twist * x_twist[None, :] * w_twist[None, :], axis=1)
       
     # Bend torque computation
     penetration_bend = np.arcsin(sin_bend[:, None]) * x_bend[None, :]
     forces_bend = _calculate_contact_force_Ogden_model_batch(
         penetration_bend, k, alpha, width_c, poisson_ratio
     ) * length / width_c
-    couple_local[1, :] = np.sum(
-        forces_bend * x_bend[None, :] * w_bend[None, :], axis=1) * (- np.sign(_batch_dot(_batch_vec_oneD_vec_cross(proj_d1d3, d1)),d2))
+    response_couple_local[1, :] = np.sum(
+        forces_bend * x_bend[None, :] * w_bend[None, :], axis=1)
 
 
     # Project to lab frame 
-    couple_lab = _batch_matvec(_batch_matrix_transpose(director_collection), couple_local)
+    couple_lab = _batch_matvec(_batch_matrix_transpose(director_collection), response_couple_local)
 
     # Save results
     response_couple_sleeve[:, :] = couple_lab
