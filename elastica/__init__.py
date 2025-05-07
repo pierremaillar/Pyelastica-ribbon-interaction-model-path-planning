@@ -32,6 +32,7 @@ from elastica.external_forces import (
     UniformTorques,
     MuscleTorques,
     EndpointForcesSinusoidal,
+    ControledPushForce,
 )
 from elastica.interaction import (
     AnisotropicFrictionalPlane,

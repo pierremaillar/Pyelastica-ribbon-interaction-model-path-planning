@@ -13,6 +13,7 @@ from elastica.timestepper.explicit_steppers import (
     RungeKutta4,
     EulerForward,
 )
+from elastica._calculus import _isnan_check
 
 
 # TODO: Both extend_stepper_interface and integrate should be in separate file.
@@ -102,9 +103,19 @@ def integrate(
 
     dt = np.float64(float(final_time) / n_steps)
     time = restart_time
+    nan_detected = False
 
-    for i in trange(n_steps, disable=(not progress_bar), mininterval = time_display_up):
+    for i in trange(n_steps, disable=(not progress_bar), mininterval=time_display_up):
         time = do_step(StatefulStepper, stages_and_updates, System, time, dt)
+    
+        for system in System._memory_blocks:
+            if _isnan_check(system.kinematic_states.position_collection):
+                nan_detected = True
+                print(f"NaN detected at step {i} in system.")
+                break  
 
+        if nan_detected:
+            break  
+        
     print("Final time of simulation is : ", time)
     return time

@@ -345,20 +345,19 @@ class GeneralConstraint(ConstraintBase):
         rod_frame_bool,
     ):
         for i, idx in enumerate(constrained_position_idx):
-            if rod_frame_bool and 0:
-                #print("position_collection", position_collection[..., idx])
-                diff_pos = fixed_positions[..., idx] - position_collection[..., idx]
-                print("diff_pos",diff_pos)
-                diff_pos_Q = director_collection[..., idx].T.copy() @ diff_pos.copy()
-                #print("diff_pos_Q",diff_pos_Q)
+                        
+            if rod_frame_bool:
+                diff_pos = fixed_positions[..., i] - position_collection[..., idx]
+                #print("diff_pos",diff_pos)
+                diff_local = director_collection[..., idx].T.copy() @ diff_pos.copy()
+                #print("diff_local",diff_local)
                 for k in range(3):
                     if not selector[k]:
-                        diff_pos_Q[k] = 0
-                #print("diff_pos_Q_new",diff_pos_Q)
-                diff_pos = director_collection[..., idx].copy() @ diff_pos_Q.copy()
-                #print("diff_pos_new", diff_pos)
-                position_collection[..., idx] += diff_pos
-                #print("position_collection", position_collection[..., idx])
+                        diff_local[k] = 0
+                correction = director_collection[..., idx].copy() @ diff_local.copy()
+                #print("correction", correction)
+                position_collection[..., idx] += correction
+                #print("position_collection", position_collection[..., idx], "\n---")
             else:
                 pos = fixed_positions[..., idx]
                 for k in range(3):

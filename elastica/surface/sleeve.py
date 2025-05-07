@@ -27,5 +27,7 @@ class Sleeve(SurfaceBase):
         self.response_force_sleeve = np.zeros((3,N-1))
         self.displacement_sleeve= np.zeros((3,N-1))
         self.response_couple_sleeve= np.zeros((3,N-1))
+        self.response_couple_local = np.zeros((3,N-1))
         self.rotation_sleeve= np.zeros((3,N-1))
+
 

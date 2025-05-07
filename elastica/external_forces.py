@@ -671,7 +671,7 @@ class ControledPushForce(NoForces):
 
     """
 
-    def __init__(self, target_force, k_p = 1):
+    def __init__(self, target_force, ramp_up_time, k_p = 1):
         """
 
         Parameters
@@ -689,7 +689,9 @@ class ControledPushForce(NoForces):
         super(ControledPushForce, self).__init__()
         self.target_force = target_force
         assert k_p >= 0.0
+        assert ramp_up_time >=0.0
         self.k_p = k_p
+        self.ramp_up_time = 
         
 
     def apply_forces(self, system, time=0.0):
@@ -700,30 +702,43 @@ class ControledPushForce(NoForces):
             system.director_collection,
             self.target_force,
             self.k_p,
+            time, 
+            self.ramp_up_time
         )
 
     @staticmethod
     @njit(cache=True)
     def compute_base_point_forces(
-        external_forces, internal_forces, director_collection, target_force, k_p
+        external_forces, internal_forces, director_collection, target_force, k_p, time, ramp_up_time
     ):
         """
-        Compute end point forces that are applied on the rod using numba njit decorator.
+        Apply a corrective base force to match the target projected force using numba njit decorator.
 
         Parameters
         ----------
-        external_forces: numpy.ndarray
-            2D (dim, blocksize) array containing data with 'float' type. External force vector.
-        start_force: numpy.ndarray
-            2D (dim, 1) array containing data with 'float' type.
-        end_force: numpy.ndarray
-            2D (dim, 1) array containing data with 'float' type.
-            Force applied to last node of the rod-like object.
+        director_collection: numpy.ndarray
+            2D (dim, dim, blocksize) array containing data with 'float' type. Matrix of director vectors Q.
+        internal_forces: numpy.ndarray
+            2D (dim, blocksize) array containing data with 'float' type. Internal Forces applied to nodes.
+        target_force: float
+             Magnitude of the Target force collinear to d3
         time: float
 
         Returns
         -------
 
         """
-        
-        external_forces[0, 0] = (external_forces[2,...,-1]*director_collection[...,-1] - target_force)* k_p
+
+        d3 = director_collection[2, :, -1]  # Shape (3,)
+    
+        # Internal force at the last node
+        f_internal = internal_forces[:, -1]  # Shape (3,)
+
+        projected_force = d3[0] * f_internal[0] + d3[1] * f_internal[1] + d3[2] * f_internal[2]
+
+        factor = min(1.0, time / ramp_up_time)
+
+        external_forces[0, 0] += (target_force + (target_force + projected_force) * k_p)*factor
+
+
+
