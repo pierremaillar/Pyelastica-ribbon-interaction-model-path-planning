@@ -469,10 +469,10 @@ def process_solution_elastica(pp_list_read, step_skip, base_length):
     rows = []
     j = 0
 
-    for t, step, pos, director, stress, couple, curvature, strains, dilatation, tangents, velocities in zip(
+    for t, step, pos, director, stress, couple, forces_in, forces_ex, curvature, strains, dilatation, tangents, velocities in zip(
         pp_list_read["time"], pp_list_read["step"],
         pp_list_read["position"], pp_list_read["directors"],
-        pp_list_read["internal_stress"], pp_list_read["internal_couple"],
+        pp_list_read["internal_stress"], pp_list_read["internal_couple"], pp_list_read["internal_forces"], pp_list_read["external_forces"],
         pp_list_read["curvature"], pp_list_read["sigma"], pp_list_read["dilatation"], pp_list_read["tangents"], pp_list_read["velocity"]
     ):
         num_elements = pos.shape[1]  # Number of points
@@ -492,6 +492,14 @@ def process_solution_elastica(pp_list_read, step_skip, base_length):
         # Extend stress
         last_element = stress[:, -1][:, np.newaxis] 
         stress_extended = np.concatenate((stress, last_element), axis=1)
+
+        # Extend forces_int
+        last_element = forces_in[:, -1][:, np.newaxis] 
+        forces_in_extended = np.concatenate((forces_in, last_element), axis=1)
+
+        # Extend forces_ex
+        last_element = forces_ex[:, -1][:, np.newaxis] 
+        forces_ex_extended = np.concatenate((forces_ex, last_element), axis=1)
 
         # Extend curvature
         last_element = curvature[:, -1][:, np.newaxis] 
@@ -526,6 +534,12 @@ def process_solution_elastica(pp_list_read, step_skip, base_length):
                 'R1': stress_extended[0, i],
                 'R2': stress_extended[1, i],
                 'R3': stress_extended[2, i],
+                'RX': forces_in_extended[0, i],
+                'RY': forces_in_extended[1, i],
+                'RZ': forces_in_extended[2, i],
+                'ReX': forces_ex_extended[0, i],
+                'ReY': forces_ex_extended[1, i],
+                'ReZ': forces_ex_extended[2, i],
                 'mX': couple_extended[2, i],
                 'mY': couple_extended[2, i],
                 'mZ': couple_extended[2, i],

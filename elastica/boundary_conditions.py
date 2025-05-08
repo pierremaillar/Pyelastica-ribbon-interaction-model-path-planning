@@ -344,20 +344,41 @@ class GeneralConstraint(ConstraintBase):
         selector,
         rod_frame_bool,
     ):
+        blocksize = len(constrained_position_idx)
+        fixed_positions_local = np.zeros((3, blocksize))
+        positions_local = np.zeros((3, blocksize))
+        new_positions = np.zeros((3, blocksize))
+    
         for i, idx in enumerate(constrained_position_idx):
                         
             if rod_frame_bool:
-                diff_pos = fixed_positions[..., i] - position_collection[..., idx]
-                #print("diff_pos",diff_pos)
-                diff_local = director_collection[..., idx].T.copy() @ diff_pos.copy()
-                #print("diff_local",diff_local)
                 for k in range(3):
-                    if not selector[k]:
-                        diff_local[k] = 0
-                correction = director_collection[..., idx].copy() @ diff_local.copy()
-                #print("correction", correction)
-                position_collection[..., idx] += correction
-                #print("position_collection", position_collection[..., idx], "\n---")
+                    for j in range(3):
+                        fixed_positions_local[k, i] += (
+                            director_collection[k, j, idx] * fixed_positions[j, i]
+                        )
+                print("position_collection[j, idx]", position_collection[:, idx])
+                print("director_collection[k, j, idx]", director_collection[k, :, idx])
+                    for j in range(3):
+                        positions_local[k, i] += (
+                            director_collection[k, j, idx] * position_collection[j, idx]
+                        )                        
+                print("fixed_positions_local",fixed_positions_local)
+                print("positions_local", positions_local)
+                
+                for k in range(3):
+                    if selector[k]:
+                        positions_local[k,i] = fixed_positions_local[k,i]
+                        
+                for j in range(3):
+                    for k in range(3):
+                        new_positions[k, i] += (
+                            director_collection[j, k, idx] * positions_local[j, i]
+                        )
+                        
+                print("new_positions", new_positions)
+                position_collection[..., idx] = new_positions_local[idx]
+                print("position_collection", position_collection[..., idx], "\n---")
             else:
                 pos = fixed_positions[..., idx]
                 for k in range(3):
