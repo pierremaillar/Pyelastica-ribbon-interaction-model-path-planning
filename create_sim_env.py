@@ -22,10 +22,10 @@ from elastica.src_plotting_ribbon import *
 
 
 def create_env(initial_position,d2_initial, position_sleeve, d2_sleeve, 
-               target_force = 1e-3, k_p_input_force = 1, ramp_up_time = 0.001,
-               dt = 2e-8, n_elem = 20,
+               target_force = 1e-1, k_p_input_force = 0.9, ramp_up_time = 0.03,
+               dt = 2e-8, final_time = 0.1, 
                base_length = 50, thickness = 0.1, width = 5, 
-               density = 1.017e-7, nu = 27e1, E = 2.77e3, poisson_ratio = 0.34
+               density = 1.017e-7, nu = 27e1, E = 2.77e3, poisson_ratio = 0.34, num_lagrange = 1e2
               ):
 
     class Ribbon(BaseSystemCollection, Contact, Forcing, Constraints, CallBacks, Damping):
@@ -33,14 +33,15 @@ def create_env(initial_position,d2_initial, position_sleeve, d2_sleeve,
     
     Sim_env = Ribbon()
 
-    num_lagrange = 1e2
-    
+    n_elem = initial_position.shape[1] - 1    
     position_diff = initial_position[..., 1:] - initial_position[..., :-1]
     rest_lengths = _batch_norm(position_diff)
 
     d3 = position_diff / rest_lengths
     d1 = _batch_cross(d2_initial,d3)
     d1 = d1 / _batch_norm(d1)
+
+    
     directors = np.stack([d1,d2_initial,d3],axis=0)
     
     
@@ -78,15 +79,13 @@ def create_env(initial_position,d2_initial, position_sleeve, d2_sleeve,
     #         filter_order=2,   # order of the filter (geater order means less damping)
     #    )
     
-    
-    
-    
+
     """ Set up boundary conditions """
     Sim_env.constrain(shearable_rod).using(
         GeneralConstraint,
         constrained_position_idx=(0,),
         constrained_director_idx=(0,),
-        translational_constraint_selector=np.array([False, True, True]),  # Allow X movement, fix Y and Z
+        translational_constraint_selector= np.abs(d3[:,0]) != np.max(np.abs(d3[:,0])),  # to block only the 2 direction that not the direction of d3 at the base
         rotational_constraint_selector=np.array([True, True, True])  # Fix all rotations
     )
     
@@ -95,13 +94,13 @@ def create_env(initial_position,d2_initial, position_sleeve, d2_sleeve,
         GeneralConstraint,
         constrained_position_idx=(-1,),
         constrained_director_idx=(-1,),
-        translational_constraint_selector=np.array([True, False, False]),  
+        translational_constraint_selector=np.array([True, True, True]),  
         rotational_constraint_selector=np.array([False, False, False]) 
     )
     
     
     Sim_env.add_forcing_to(shearable_rod).using(
-        ControledPushForce, target_force, ramp_up_time, k_p = k_p_input_force
+        ControledPushForce, target_force, d3[:,0], ramp_up_time, k_p = k_p_input_force
     )
     
     
@@ -124,8 +123,6 @@ def create_env(initial_position,d2_initial, position_sleeve, d2_sleeve,
         nu=0,
         alpha = -16.6,
         poisson_ratio=0.5,
-        width_elem = width,
-        length_elem = base_length/n_elem,
         N_quad = 3,
     )
     
@@ -151,11 +148,14 @@ def create_env(initial_position,d2_initial, position_sleeve, d2_sleeve,
                 self.callback_params["curvature"].append(system.kappa.copy())
                 self.callback_params["sigma"].append(system.sigma.copy())
                 self.callback_params["internal_stress"].append(system.internal_stress.copy())
+                self.callback_params["internal_forces"].append(system.internal_forces.copy())
+                self.callback_params["external_forces"].append(system.external_forces.copy())
                 self.callback_params["internal_couple"].append(system.internal_couple.copy())
                 self.callback_params["directors"].append(system.director_collection.copy())
                 self.callback_params["dilatation"].append(system.dilatation.copy())
                 self.callback_params["tangents"].append(system.tangents.copy())
                 
+            
                 
                 return
                 
@@ -183,7 +183,7 @@ def create_env(initial_position,d2_initial, position_sleeve, d2_sleeve,
                 return
                 
     
-    step_skip= int(0.1/dt/1000)
+    step_skip= int(final_time/dt/1000)
     
     ribbon_output_list = defaultdict(list)
     sleeve_output_list = defaultdict(list)
@@ -197,6 +197,5 @@ def create_env(initial_position,d2_initial, position_sleeve, d2_sleeve,
     )
 
     Sim_env.finalize()
-    print("System finalized")
 
-    return Sim_env
+    return ribbon_output_list, sleeve_output_list, Sim_env

@@ -660,8 +660,6 @@ class RibbonSleeveContact(NoContact):
         nu: float,
         alpha: float,
         poisson_ratio: float,
-        width_elem: float,
-        length_elem: float,
         N_quad: int = 10,
     ):
         """
@@ -683,13 +681,12 @@ class RibbonSleeveContact(NoContact):
         self.nu = nu
         self.alpha = alpha
         self.poisson_ratio = poisson_ratio
-        self.width_elem = width_elem
-        self.length_elem = length_elem
 
-        self.x_twist = np.linspace(-width_elem/2, width_elem/2, N_quad)
         self.w_twist = np.ones(N_quad) / N_quad
-        self.x_bend = np.linspace(-length_elem/2, length_elem/2, N_quad)
         self.w_bend = np.ones(N_quad) / N_quad
+
+        self.base_quad = np.linspace(-0.5, 0.5, N_quad)  
+
 
     def _check_systems_validity(
         self,
@@ -756,15 +753,14 @@ class RibbonSleeveContact(NoContact):
             self.k,
             self.alpha,
             self.poisson_ratio,
-            self.width_elem,
+            system_one.width,
             system_one.thickness,
-            self.length_elem,
+            system_one.lengths,
             system_one.director_collection,
             system_one.external_torques,
-            self.x_twist, 
-            self.w_twist, 
-            self.x_bend, 
+            self.w_twist,
             self.w_bend,
+            self.base_quad, 
         )
 
 

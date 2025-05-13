@@ -713,12 +713,14 @@ def _calculate_contact_torques_ribbon_sleeve(
     k,
     alpha,
     poisson_ratio,
-    width_c,
+    width,
     thickness,
     length,
     director_collection,
     external_torques,
-    x_twist, w_twist, x_bend, w_bend
+    w_twist, 
+    w_bend,
+    base_quad
 ):
 
     """
@@ -736,6 +738,13 @@ def _calculate_contact_torques_ribbon_sleeve(
     None
     """
     
+    twist_grid = base_quad[None, :] * width[:, None]   
+    bend_grid = base_quad[None, :] * length[:, None]     
+
+    w_twist_grid = w_twist[None, :] 
+    w_bend_grid = w_bend[None, :]    
+
+    
     normal_collection_ribbon = director_collection[0, :, :] 
     normal_sleeve_on_Q = _batch_matvec(director_collection, normal_collection_sleeve) 
 
@@ -752,22 +761,23 @@ def _calculate_contact_torques_ribbon_sleeve(
     sin_bend = _batch_norm(cross_bend)*(-np.sign(cross_bend[1]))
     sin_twist = _batch_norm(cross_twist)*(-np.sign(cross_twist[2]))
 
+    
     # Twist torque computation
-    penetration_twist = np.arcsin(sin_twist[:, None]) * x_twist[None, :]
+    penetration_twist = np.arcsin(sin_twist[:, None]) * twist_grid
     forces_twist = _calculate_contact_force_Ogden_model_batch(
-        penetration_twist, k, alpha, width_c, poisson_ratio
-    )* length / width_c
+        penetration_twist, k, alpha, width, poisson_ratio
+    ) * (length[:, None] / width[:, None])
+    
+    response_couple_local[2, :] = np.sum(forces_twist * twist_grid * w_twist_grid, axis=1)*0
 
-    response_couple_local[2, :] = np.sum(
-        forces_twist * x_twist[None, :] * w_twist[None, :], axis=1)
-      
+    
     # Bend torque computation
-    penetration_bend = np.arcsin(sin_bend[:, None]) * x_bend[None, :]
+    penetration_bend = np.arcsin(sin_bend[:, None]) * bend_grid
     forces_bend = _calculate_contact_force_Ogden_model_batch(
-        penetration_bend, k, alpha, width_c, poisson_ratio
-    ) * length / width_c
-    response_couple_local[1, :] = np.sum(
-        forces_bend * x_bend[None, :] * w_bend[None, :], axis=1)
+        penetration_bend, k, alpha, width, poisson_ratio
+    ) * (length[:, None] / width[:, None])
+    
+    response_couple_local[1, :] = np.sum(forces_bend * bend_grid * w_bend_grid, axis=1)
 
 
     # Project to lab frame 
@@ -804,14 +814,18 @@ def _calculate_contact_force_Ogden_model_batch(
             sign = np.sign(d)
             d = abs(d)
 
-            # we can use the relation dirived from FEM but only if units are m,N,... 
+            if d == 0.0:
+                forces[i, j] = 0.0
+                continue
+
+            # we can use the relation dirived from FEM but only if units are standard Si (m,N,...) 
             # a = r ** (0.503 - 3.97e-6 * d) * d ** 0.498
-            a = r ** 0.5 * d ** 0.5 
+            a = r[i] ** 0.5 * d ** 0.5 
             scale = 40 * k / (9 * alpha * (1 - poisson_ratio ** 2))
-            factor = (1 - 0.2 * d / r)
+            factor = (1 - 0.2 * d / r[i])
             magnitude = scale * a**2 * (
-                (1 - 0.2 * a / r) ** (-alpha / 2 - 1)
-                - (1 - 0.2 * a / r) ** (alpha - 1)
+                (1 - 0.2 * a / r[i]) ** (-alpha / 2 - 1)
+                - (1 - 0.2 * a / r[i]) ** (alpha - 1)
             )
             forces[i, j] = sign * magnitude
 

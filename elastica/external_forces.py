@@ -671,7 +671,7 @@ class ControledPushForce(NoForces):
 
     """
 
-    def __init__(self, target_force, ramp_up_time, k_p = 1):
+    def __init__(self, target_force, direction, ramp_up_time, k_p = 1):
         """
 
         Parameters
@@ -692,6 +692,7 @@ class ControledPushForce(NoForces):
         assert ramp_up_time >=0.0
         self.k_p = k_p
         self.ramp_up_time = ramp_up_time
+        self.direction = direction / np.linalg.norm(direction)
         
 
     def apply_forces(self, system, time=0.0):
@@ -700,6 +701,7 @@ class ControledPushForce(NoForces):
             system.external_forces,
             system.internal_stress,
             self.target_force,
+            self.direction,
             self.k_p,
             time, 
             self.ramp_up_time
@@ -708,7 +710,7 @@ class ControledPushForce(NoForces):
     @staticmethod
     @njit(cache=True)
     def compute_base_point_forces(
-        external_forces, internal_stress, target_force, k_p, time, ramp_up_time
+        external_forces, internal_stress, target_force, direction, k_p, time, ramp_up_time
     ):
         """
         Apply a corrective base force to match the target projected force using numba njit decorator.
@@ -733,7 +735,7 @@ class ControledPushForce(NoForces):
 
         factor = min(1.0, time / ramp_up_time)
 
-        external_forces[0, 0] += (target_force + (target_force*factor + f_internal) * k_p)*factor
+        external_forces[..., 0] += direction*(target_force + (target_force*factor + f_internal) * k_p)*factor
 
 
 

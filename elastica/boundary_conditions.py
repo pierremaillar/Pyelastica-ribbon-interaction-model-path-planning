@@ -347,44 +347,26 @@ class GeneralConstraint(ConstraintBase):
         blocksize = len(constrained_position_idx)
         fixed_positions_local = np.zeros((3, blocksize))
         positions_local = np.zeros((3, blocksize))
-        new_positions = np.zeros((3, blocksize))
     
         for i, idx in enumerate(constrained_position_idx):
-                        
-            if rod_frame_bool:
-                for k in range(3):
-                    for j in range(3):
-                        fixed_positions_local[k, i] += (
-                            director_collection[k, j, idx] * fixed_positions[j, i]
-                        )
-                print("position_collection[j, idx]", position_collection[:, idx])
-                print("director_collection[k, j, idx]", director_collection[k, :, idx])
-                    for j in range(3):
-                        positions_local[k, i] += (
-                            director_collection[k, j, idx] * position_collection[j, idx]
-                        )                        
-                print("fixed_positions_local",fixed_positions_local)
-                print("positions_local", positions_local)
-                
+            if rod_frame_bool and False:
+                # Convert both current and fixed positions to local frame
+                R_T = director_collection[..., idx].T
+                fixed_positions_local[:, i] = R_T @ fixed_positions[:, idx]
+                positions_local[:, i] = R_T @ position_collection[:, idx]
+    
+                # Apply selected constraints in local frame
                 for k in range(3):
                     if selector[k]:
-                        positions_local[k,i] = fixed_positions_local[k,i]
-                        
-                for j in range(3):
-                    for k in range(3):
-                        new_positions[k, i] += (
-                            director_collection[j, k, idx] * positions_local[j, i]
-                        )
-                        
-                print("new_positions", new_positions)
-                position_collection[..., idx] = new_positions_local[idx]
-                print("position_collection", position_collection[..., idx], "\n---")
+                        positions_local[k, i] = fixed_positions_local[k, i]
+    
+                # Convert back to global frame
+                position_collection[:, idx] = director_collection[..., idx] @ positions_local[:, i]
             else:
-                pos = fixed_positions[..., idx]
+                # Apply constraints directly in global frame
                 for k in range(3):
-                    if selector[k]:
-                        position_collection[k, idx] = pos[k]
-
+                    if selector[k] and False:
+                        position_collection[k, idx] = fixed_positions[k, idx]
 
 
     @staticmethod
@@ -407,7 +389,7 @@ class GeneralConstraint(ConstraintBase):
         rod_frame_bool,
     ):
         for idx in constrained_position_idx:
-            if rod_frame_bool:
+            if rod_frame_bool and False:
                 v_local = director_collection[..., idx].T.copy() @ velocity_collection[..., idx].copy()
                 #print("velocity_collection[..., idx]", velocity_collection[..., idx])
                 for k in range(3):
@@ -430,16 +412,9 @@ class GeneralConstraint(ConstraintBase):
         rod_frame_bool,
     ):
         for idx in constrained_director_idx:
-            if rod_frame_bool:
-                omega_local = omega_collection[..., idx]
-                for k in range(3):
-                    if selector[k]:
-                        omega_local[k] = 0.0
-                omega_collection[..., idx] = omega_local
-            else:
-                for k in range(3):
-                    if selector[k]:
-                        omega_collection[k, idx] = 0.0
+            for k in range(3):
+                if selector[k]:
+                    omega_collection[k, idx] = 0.0
 
 
                     

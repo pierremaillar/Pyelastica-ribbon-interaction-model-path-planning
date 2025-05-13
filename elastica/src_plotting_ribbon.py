@@ -445,7 +445,7 @@ def plot_3D_ribbons_from_process_solutions(solution_df1, solution_indices1, solu
     fig.show()
     return fig
 
-def process_solution_elastica(pp_list_read, step_skip, base_length):
+def process_solution_elastica(pp_list_read, base_length):
     """
     Processes solution data and converts it into a structured DataFrame.
 
@@ -454,10 +454,7 @@ def process_solution_elastica(pp_list_read, step_skip, base_length):
     pp_list_read : dict
         DictionaR2 containing solution data with keys: 'time', 'step', 'position', 
         'directors', 'internal_stress', 'internal_couple', and 'curvature'.
-    
-    step_skip : int
-        Step increment to normalize the solution index.
-
+        
     base_length : float
         Reference length to normalize positional values.
 
@@ -564,7 +561,7 @@ def process_solution_elastica(pp_list_read, step_skip, base_length):
 
 
 
-def process_solution_elastica_sleeve(pp_list_read, step_skip):
+def process_solution_elastica_sleeve(pp_list_read):
     """
     Processes solution data and converts it into a structured DataFrame.
 
@@ -712,3 +709,97 @@ def sanity_check_plot(solution):
     print(f"Final stress stat at s = 0:\nR1: {one_solution_final.R1.iloc[0]:.4e}\nR2: {one_solution_final.R2.iloc[0]:.4e}\nR3: {one_solution_final.R3.iloc[0]:.4e}")
 
     print(f"Final stress stat at s = 1:\nR1: {one_solution_final.R1.iloc[-1]:.4e}\nR2: {one_solution_final.R2.iloc[-1]:.4e}\nR3: {one_solution_final.R3.iloc[-1]:.4e}")
+
+
+
+
+def build_incremental_discretized_paths(path_df, direction, normal, n_points, M, min_length):
+    direction = direction / np.linalg.norm(direction)
+    normal = normal - direction * np.dot(direction, normal)
+    normal /= np.linalg.norm(normal)
+    binormal = np.cross(direction, normal)
+
+    total_length = path_df['length (mm)'].sum()
+    max_length = total_length
+    lengths = np.linspace(min_length, max_length, M)
+
+    all_paths = []
+
+    for target_length in lengths:
+        path_points = [np.zeros(3)]
+        pos = np.zeros(3)
+        T = direction
+        N = normal
+        B = np.cross(T, N)
+
+        accumulated_length = 0.0
+        for idx, row in path_df.iterrows():
+            seg_type = row['type']
+            L = row['length (mm)']
+            k = row['curvature (1/mm)']
+
+            remaining_length = target_length - accumulated_length
+            if remaining_length <= 0:
+                break
+
+            # Clip segment if needed
+            seg_length = min(L, remaining_length)
+            if seg_length < 1e-6:
+                continue
+
+            # Allocate points
+            num_pts = n_points if seg_length == target_length else max(2, int(np.ceil((seg_length / target_length) * n_points)))
+            ds = seg_length / (num_pts - 1)
+
+            if seg_type == 'line' or np.isclose(k, 0.0):
+                for i in range(1, num_pts):
+                    pos = pos + T * ds
+                    path_points.append(pos.copy())
+            else:  # arc
+                R = 1 / k
+                theta_total = seg_length * k
+                dtheta = theta_total / (num_pts - 1)
+                center = pos + N * R
+
+                for i in range(1, num_pts):
+                    theta = i * dtheta
+                    rot_axis = B
+                    rot_matrix = (
+                        np.cos(theta) * np.eye(3) +
+                        np.sin(theta) * skew(rot_axis) +
+                        (1 - np.cos(theta)) * np.outer(rot_axis, rot_axis)
+                    )
+                    rotated_vector = rot_matrix @ (-N * R)
+                    new_pos = center + rotated_vector
+                    path_points.append(new_pos.copy())
+
+                # Update frame
+                T = rot_matrix @ T
+                N = rot_matrix @ N
+                B = np.cross(T, N)
+                B /= np.linalg.norm(B)
+                pos = path_points[-1]
+
+            accumulated_length += seg_length
+            if accumulated_length >= target_length:
+                break
+
+        # Interpolate to ensure exactly `n_points`
+        path_points = np.array(path_points)
+        distances = np.linalg.norm(np.diff(path_points, axis=0), axis=1)
+        arc_lengths = np.insert(np.cumsum(distances), 0, 0.0)
+        target_arc = np.linspace(0, arc_lengths[-1], n_points)
+        interp_path = np.zeros((n_points, 3))
+        for j in range(3):
+            interp_path[:, j] = np.interp(target_arc, arc_lengths, path_points[:, j])
+        all_paths.append(interp_path.T)  # shape (3, n_points)
+
+    return all_paths, lengths
+
+def skew(v):
+    """Skew-symmetric matrix for cross product"""
+    return np.array([
+        [0, -v[2], v[1]],
+        [v[2], 0, -v[0]],
+        [-v[1], v[0], 0]
+    ])

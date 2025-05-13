@@ -118,4 +118,4 @@ def integrate(
             break  
         
     print("Final time of simulation is : ", time)
-    return time
+    return nan_detected, time
