@@ -13,10 +13,10 @@ N_points = 50
 direction = np.array([0,-1,0])
 normal = np.array([0,0,1])
 path_plan = pd.read_csv("path_0_0__15_-20__20_-40.csv")
-M = 3 # number of step in a path
+M = 10 # number of step in a path
 min_length = 5
 
-final_time = 0.075
+final_time = 0.1
 
 
 paths_points, base_length = build_incremental_discretized_paths(path_plan, direction, normal, N_points, M, min_length)
