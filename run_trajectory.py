@@ -13,7 +13,7 @@ N_points = 50
 direction = np.array([0,-1,0])
 normal = np.array([0,0,1])
 path_plan = pd.read_csv("path_0_0__15_-20__20_-40.csv")
-M = 10 # number of step in a path
+M = 50 # number of step in a path
 min_length = 5
 final_time = 0.075
 
@@ -61,3 +61,5 @@ for idx, stat in enumerate(paths_points):
     
         with open(f"result/simulation_data_sleeve_{idx}.pickle", 'wb') as handle:
             pickle.dump(sleeve_output_list, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+    print(f"Solution {idx} saved \n ------------ \n")
