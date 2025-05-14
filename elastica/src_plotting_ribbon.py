@@ -7,6 +7,14 @@ import matplotlib.cm as cm
 import math
 import os
 
+import matplotlib.animation as animation
+from matplotlib.colors import LinearSegmentedColormap
+from matplotlib.colors import Normalize
+from mpl_toolkits.mplot3d import Axes3D
+
+
+
+
 
 def plot_3D_ribbons_from_process_solution(solution_df, solution_indices=None, n_points=20, half_width=0.1, n_arrows = 10, save_path=None):
     """
@@ -944,3 +952,236 @@ def skew(v):
         [v[2], 0, -v[0]],
         [-v[1], v[0], 0]
     ])
+
+def plot_trajectory(path_points, show=True, color='b', label='Trajectory'):
+    fig = plt.figure(figsize=(8, 6))
+    ax = fig.add_subplot(111, projection='3d')
+    
+    path_points = np.array(path_points).T
+    ax.scatter(path_points[:, 0], path_points[:, 1], path_points[:, 2], color=color, s = 1, label=label)
+
+    # Mark start and end
+    ax.scatter(*path_points[0], color='green', s=20, label='Start')
+    ax.scatter(*path_points[-1], color='red', s=20, label='End')
+
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.set_zlabel('Z')
+    ax.set_title('Discretized 3D Path')
+    ax.legend()
+    ax.grid(True)
+    ax.axis('auto')
+    
+    if show:
+        plt.tight_layout()
+        plt.show()
+
+
+def color_function(f1, m3, n_points_width, a):
+
+    stress = np.linspace(a/2,-a/2,n_points_width)*12*m3/a**2+f1
+    return stress
+
+
+def plot_ribbon_with_views(X_surf, Y_surf, Z_surf, colors, stress_cmap, min_value, max_value, axes=None):
+
+    def plot_single_view(ax, elev, azim, title, show_colorbar=False):
+        ax.clear()  # Clear previous contents
+
+        # Apply surface colors
+        normalized_colors = Normalize(vmin=min_value, vmax=max_value)(colors)
+        rgba_colors = stress_cmap(normalized_colors)
+        ax.plot_surface(Z_surf, X_surf, Y_surf,
+                        facecolors=rgba_colors, alpha=1, zorder=2,
+                        cstride=1, rstride=1, shade=False)
+
+        if show_colorbar:
+            mappable = plt.cm.ScalarMappable(cmap=stress_cmap)
+            mappable.set_array(np.linspace(min_value, max_value, 100))
+            if not hasattr(ax, 'colorbar'):
+                ax.colorbar = plt.colorbar(mappable, ax=ax, shrink=0.45, aspect=10)
+            ax.colorbar.set_label("External Stress [Pa]")
+
+        ax.view_init(elev=elev, azim=azim)
+        ax.xaxis.set_pane_color('gray')
+        ax.yaxis.set_pane_color('gray')
+        ax.zaxis.set_pane_color('gray')
+        ax.set_xlabel('Z [mm]')
+        ax.set_ylabel('X [mm]')
+        ax.set_zlabel('Y [mm]')
+        ax.set_xlim([-25, 25])
+        ax.set_ylim([-25, 25])
+        ax.set_zlim([-50, 0])
+        ax.set_title(title)
+
+    # If no axes are passed, create new ones
+    if axes is None:
+        fig = plt.figure(figsize=(18, 6))
+        axes = [
+            fig.add_subplot(131, projection='3d'),
+            fig.add_subplot(132, projection='3d'),
+            fig.add_subplot(133, projection='3d'),
+        ]
+
+    # Plot into the given axes
+    plot_single_view(axes[0], elev=22.5, azim=-45, title="Isometric View")
+    plot_single_view(axes[1], elev=5, azim=-90, title="Front View")
+    plot_single_view(axes[2], elev=5, azim=0, title="Side View", show_colorbar=True)
+
+    return axes
+
+
+
+def Plot_stress_field(solutions, solutions_sleeve, L, a, n_points=20, axes=None, min_value=None, max_value=None):
+
+
+    # Define colors for the stress colormap
+    stress_colors = [
+        (0.0, "blue"),    # Low value
+        (0.25, "cyan"),   # Mid-low
+        (0.5, "lime"),   # Middle
+        (0.75, "yellow"), # Mid-high
+        (1.0, "red")      # High value
+    ]
+    
+    stress_colors = [
+        (0.0, "blue"),    # Low value
+        (0.5, "white"),   # Middle
+        (1.0, "red")      # High value
+    ]
+    
+    # Create the colormap
+    stress_cmap = LinearSegmentedColormap.from_list("StressColormap", stress_colors)
+    
+    # Get the solution with the maximum index
+    last_solution = solutions[solutions.Index_solution == solutions.Index_solution.max()]
+    last_solution_sleeve = solutions_sleeve[solutions_sleeve.Index_solution == solutions_sleeve.Index_solution.max()]
+
+    last_solution_sleeve = pd.concat([last_solution_sleeve[last_solution_sleeve.s ==0],
+                                     last_solution_sleeve,
+                                     last_solution_sleeve[last_solution_sleeve.s ==1]])
+
+    # Set parameters for the ribbon width and quiver arrows
+    half_width = a / 2  # Ribbon width
+    arrow_scale = 0.1  # Scale for quiver arrows
+    
+    # Prepare arrays for surface plotting
+    X_surf, Y_surf, Z_surf, colors = [], [], [], []
+
+    # Iterate over all points in the solution
+    for i in range(len(last_solution)):
+        # Centerline point
+        x, y, z = last_solution.iloc[i][['X', 'Y', 'Z']] * L
+
+
+        # Direction vectors (normalize d1 and d2)
+        d3 = last_solution.iloc[i][['d3x', 'd3y', 'd3z']].values
+        d2 = last_solution.iloc[i][['d2x', 'd2y', 'd2z']].values
+        d3 /= np.linalg.norm(d3)
+        d2 /= np.linalg.norm(d2)
+        d1 = np.cross(d2,d3)
+
+        # Create points for the ribbon width
+        width_points = []
+        for j in range(n_points):
+            # Interpolate points along the width of the ribbon
+            m = (j - n_points / 2) / (n_points / 2)
+            width_point = np.array([x, y, z]) + m * half_width * d2
+            width_points.append(width_point)
+
+        # Append the X, Y, Z coordinates for the ribbon width
+        width_points = np.array(width_points)
+        X_surf.append(width_points[:, 0])
+        Y_surf.append(width_points[:, 1])
+        Z_surf.append(width_points[:, 2])
+
+        rx = (last_solution_sleeve.iloc[i+1].response_force_X + last_solution_sleeve.iloc[i].response_force_X)/2
+        ry = (last_solution_sleeve.iloc[i+1].response_force_Y + last_solution_sleeve.iloc[i].response_force_Y)/2
+        rz = (last_solution_sleeve.iloc[i+1].response_force_Z + last_solution_sleeve.iloc[i].response_force_Z)/2
+        
+
+        mx = (last_solution_sleeve.iloc[i+1].response_couple_X + last_solution_sleeve.iloc[i].response_couple_X)/2
+        my = (last_solution_sleeve.iloc[i+1].response_couple_Y + last_solution_sleeve.iloc[i].response_couple_Y)/2
+        mz = (last_solution_sleeve.iloc[i+1].response_couple_Z + last_solution_sleeve.iloc[i].response_couple_Z)/2
+
+        
+        f_n = rx*d1[0] + ry*d1[1] + rz*d1[2]
+        m3 = mx*d3[0] + my*d3[1] + mz*d3[2]
+        
+        colors.append([color_function(f_n*1e6, m3*1e6,n_points, a)])
+
+    # Convert to numpy arrays for surface plotting
+    X_surf = np.array(X_surf)
+    Y_surf = np.array(Y_surf)
+    Z_surf = np.array(Z_surf)
+    colors = np.concatenate(colors, axis=0)
+
+    if axes is not None:
+        axes = plot_ribbon_with_views(X_surf, Y_surf, Z_surf, colors, stress_cmap, min_value, max_value, axes)
+
+
+
+def compute_global_stress_range(all_solutions, all_sleeves, a, lengths, n_points):
+    all_colors = []
+
+    for solutions, sleeve, L in zip(all_solutions, all_sleeves, lengths):
+        last_solution = solutions[solutions.Index_solution == solutions.Index_solution.max()]
+        last_solution_sleeve = sleeve[sleeve.Index_solution == sleeve.Index_solution.max()]
+        last_solution_sleeve = pd.concat([
+            last_solution_sleeve[last_solution_sleeve.s == 0],
+            last_solution_sleeve,
+            last_solution_sleeve[last_solution_sleeve.s == 1]
+        ])
+
+        for i in range(len(last_solution)):
+            d3 = last_solution.iloc[i][['d3x', 'd3y', 'd3z']].values
+            d2 = last_solution.iloc[i][['d2x', 'd2y', 'd2z']].values
+            d3 /= np.linalg.norm(d3)
+            d2 /= np.linalg.norm(d2)
+            d1 = np.cross(d2, d3)
+
+            rx = (last_solution_sleeve.iloc[i+1].response_force_X + last_solution_sleeve.iloc[i].response_force_X)/2
+            ry = (last_solution_sleeve.iloc[i+1].response_force_Y + last_solution_sleeve.iloc[i].response_force_Y)/2
+            rz = (last_solution_sleeve.iloc[i+1].response_force_Z + last_solution_sleeve.iloc[i].response_force_Z)/2
+            mx = (last_solution_sleeve.iloc[i+1].response_couple_X + last_solution_sleeve.iloc[i].response_couple_X)/2
+            my = (last_solution_sleeve.iloc[i+1].response_couple_Y + last_solution_sleeve.iloc[i].response_couple_Y)/2
+            mz = (last_solution_sleeve.iloc[i+1].response_couple_Z + last_solution_sleeve.iloc[i].response_couple_Z)/2
+
+            f_n = rx*d1[0] + ry*d1[1] + rz*d1[2]
+            m3 = mx*d3[0] + my*d3[1] + mz*d3[2]
+
+            stress = color_function(f_n*1e6, m3*1e6, n_points, a)
+            all_colors.append(stress)
+
+    all_colors = np.concatenate(all_colors)
+    min_val = -abs(all_colors).max()
+    max_val = abs(all_colors).max()
+    if max_val - min_val < 1e-3:
+        max_val += 1e-3
+        min_val -= 1e-3
+    return min_val, max_val
+
+
+def animate_stress_field_3views(all_solutions, all_sleeves, lengths, a, max_frame, n_points=20, interval=200):
+    min_val, max_val = compute_global_stress_range(all_solutions, all_sleeves, a, lengths, n_points)
+
+    fig = plt.figure(figsize=(18, 6))
+    ax1 = fig.add_subplot(131, projection='3d')
+    ax2 = fig.add_subplot(132, projection='3d')
+    ax3 = fig.add_subplot(133, projection='3d')
+    axes = [ax1, ax2, ax3]
+
+    def update(frame):
+        solutions = all_solutions[frame]
+        solutions_sleeve = all_sleeves[frame]
+        L = lengths[frame]
+
+        Plot_stress_field(solutions, solutions_sleeve, L, a, n_points=n_points,
+                          axes=axes, min_value=min_val, max_value=max_val)
+
+        return axes
+
+    ani = animation.FuncAnimation(fig, update, frames=range(max_frame + 1), interval=interval, blit=False)
+    ani.save("stress_field_animation.gif", fps=5)
+    plt.tight_layout()
+    plt.show()
