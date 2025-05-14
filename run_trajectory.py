@@ -14,7 +14,6 @@ direction = np.array([0,-1,0])
 normal = np.array([0,0,1])
 path_plan = pd.read_csv("path_0_0__15_-20__20_-40.csv")
 M = 10 # number of step in a path
-kp = 1.2
 min_length = 5
 final_time = 0.075
 
@@ -33,6 +32,7 @@ for idx, stat in enumerate(paths_points):
     d2_sleeve = d2_initial
 
     dt = 1e-7
+    kp = 0.8
     
     running = True
     while running:
