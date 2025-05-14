@@ -314,6 +314,78 @@ def plot_multiple_solutions(
         plt.show()
 
 
+
+def plot_multiple_solutions_sleeve(
+    solution_dfs, 
+    labels, 
+    indices, 
+    start_color_idx=0, 
+    print_legend=False,
+    variables=[
+        ('displacement_X', 'Displacement on X'),
+        ('displacement_Y', 'Displacement on Y'),
+        ('displacement_Z', 'Displacement on Z'),
+        ('response_force_X', 'Force on X'),
+        ('response_force_Y', 'Force on Y'),
+        ('response_force_Z', 'Force on Z'),
+        ('rotation_angle_d1', 'Rotation angle d1'),
+        ('rotation_angle_d2', 'Rotation angle d2'),
+        ('rotation_angle_d3', 'Rotation angle d3'),
+        ('response_couple_X', 'Couple on X'),
+        ('response_couple_Y', 'Couple on Y'),
+        ('response_couple_Z', 'Couple on Z'),
+    ],
+    save_path=None
+):
+
+
+    num_solutions = len(solution_dfs)
+
+    num_vars = len(variables)
+    ncols = math.ceil(math.sqrt(num_vars))
+    nrows = math.ceil(num_vars / ncols)
+    fig_width = ncols * 4
+    fig_height = nrows * 3
+
+    fig, axs = plt.subplots(nrows, ncols, figsize=(fig_width, fig_height))
+
+    colormaps = [cm.Blues, cm.Oranges, cm.Greens, cm.Purples, cm.Reds, cm.Greys]
+    colormap = colormaps[start_color_idx % len(colormaps)]
+    colors = [colormaps[i % len(colormaps)](np.linspace(0.3, 1, len(indices))) for i in range(num_solutions)]
+
+    for i, (var, title) in enumerate(variables):
+        row, col = divmod(i, 3)
+        axs[row, col].grid(True)
+
+        for j, (df, label) in enumerate(zip(solution_dfs, labels)):
+            for k, index_solution in enumerate(indices):
+                selected_df = df[df['Index_solution'] == index_solution].reset_index()
+                color = colors[j][k]
+                axs[row, col].plot(
+                    selected_df['s'], selected_df[var],
+                    color=color, linestyle='-', label=label if k == 0 else ""
+                )
+
+        axs[row, col].set_ylabel(title, fontsize=12)
+        axs[row, col].set_xlabel('s', fontsize=12)
+        axs[row, col].set_title(title, fontsize=14)
+        axs[row, col].tick_params(axis='both', labelsize=10)
+
+    if print_legend:
+        axs[0, -1].legend(title='Legend', fontsize=10, loc='upper left')
+
+    plt.tight_layout()
+    plt.subplots_adjust(top=0.90)
+
+    # Save or show
+    if save_path is not None:
+        fig.savefig(save_path, bbox_inches='tight', dpi=300)
+        print(f"Plot saved to: {save_path}")
+        plt.close(fig) 
+    else:
+        plt.show()
+
+
 def plot_3D_ribbons_from_process_solutions(solution_df1, solution_indices1, solution_df2, solution_indices2,  color_df1 = 'viridis', color_df2 = 'Plasma',
                                            n_points=20, half_width=0.1, n_arrows=10, save_path="figure/3D_ribbons.png"):
     """
@@ -625,7 +697,7 @@ def sanity_check_plot(solution):
     norm_b = np.sqrt(solution['tx']**2 + solution['ty']**2 + solution['tz']**2)
     solution["sin_theta_txd3"] = a_dot_b / (norm_a * norm_b) - 1
 
-    solution["norm_r"] = np.sqrt((solution['X']-1)**2 + solution['Y']**2 + solution['Z']**2)
+    solution["norm_V"] = np.sqrt((solution['VX'])**2 + solution['VY']**2 + solution['VZ']**2)
 
     solution_mean = solution.groupby("time").mean()
     solution_max = solution.abs().groupby("time").max()
@@ -647,7 +719,7 @@ def sanity_check_plot(solution):
     fontdict = {'fontsize': 14}
 
     # Subplot 1: Steady state
-    axes[0, 0].plot(solution_max.index, (solution_max['norm_r'] - solution_max['norm_r'].iloc[-1]))
+    axes[0, 0].plot(solution_max.index, (solution_l2['norm_V']))
     axes[0, 0].set_title("Steady State", **fontdict)
     axes[0, 0].set_xlabel("Time", fontsize=12)
     axes[0, 0].set_ylabel("max|r|", fontsize=12)
@@ -739,7 +811,7 @@ def build_incremental_discretized_paths(path_df, direction, normal, n_points, M,
             k = row['curvature (1/mm)']
 
             remaining_length = target_length - accumulated_length
-            if remaining_length <= 0:
+            if remaining_length < 0:
                 break
 
             # Clip segment if needed

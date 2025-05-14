@@ -51,8 +51,8 @@ for idx, stat in enumerate(paths_points):
             running = False
             print("dt set below tolerance. Break simulation")
 
-    with open(f"result/simulation_data_{idx}.pickle", 'wb') as handle:
-        pickle.dump(ribbon_output_list, handle, protocol=pickle.HIGHEST_PROTOCOL)
-
-    with open(f"result/simulation_data_sleeve_{idx}.pickle", 'wb') as handle:
-        pickle.dump(sleeve_output_list, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        with open(f"result/simulation_data_{idx}.pickle", 'wb') as handle:
+            pickle.dump(ribbon_output_list, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    
+        with open(f"result/simulation_data_sleeve_{idx}.pickle", 'wb') as handle:
+            pickle.dump(sleeve_output_list, handle, protocol=pickle.HIGHEST_PROTOCOL)
