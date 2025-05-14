@@ -696,7 +696,7 @@ def _calculate_contact_forces_ribbon_sleeve(
     damping_force = -nu * _batch_product_k_ik_to_ik(normal_velocity_component, normal_collection_sleeve)
 
     # Total plane response force
-    response_force_sleeve[:, :] = hyperelastic_force + damping_force
+    response_force_sleeve[:, :] = _batch_product_k_ik_to_ik(1/(lengths*width),(hyperelastic_force + damping_force))
 
     # Map element forces back to nodes and add the sleeve response to the external forces
     _elements_to_nodes_inplace(response_force_sleeve, external_forces)
@@ -718,8 +718,7 @@ def _calculate_contact_torques_ribbon_sleeve(
     length,
     director_collection,
     external_torques,
-    w_twist, 
-    w_bend,
+    w_grid, 
     base_quad
 ):
 
@@ -738,11 +737,8 @@ def _calculate_contact_torques_ribbon_sleeve(
     None
     """
     
-    twist_grid = base_quad[None, :] * width[:, None]   
-    bend_grid = base_quad[None, :] * length[:, None]     
-
-    w_twist_grid = w_twist[None, :] 
-    w_bend_grid = w_bend[None, :]    
+    twist_grid = base_quad * width[:, None]   
+    bend_grid = base_quad * length[:, None]      
 
     
     normal_collection_ribbon = director_collection[0, :, :] 
@@ -768,7 +764,7 @@ def _calculate_contact_torques_ribbon_sleeve(
         penetration_twist, k, alpha, width, poisson_ratio
     ) * (length[:, None] / width[:, None])
     
-    response_couple_local[2, :] = np.sum(forces_twist * twist_grid * w_twist_grid, axis=1)*0
+    response_couple_local[2, :] = np.sum(forces_twist * twist_grid * w_grid, axis=1)
 
     
     # Bend torque computation
@@ -777,14 +773,14 @@ def _calculate_contact_torques_ribbon_sleeve(
         penetration_bend, k, alpha, width, poisson_ratio
     ) * (length[:, None] / width[:, None])
     
-    response_couple_local[1, :] = np.sum(forces_bend * bend_grid * w_bend_grid, axis=1)
+    response_couple_local[1, :] = np.sum(forces_bend * bend_grid * w_grid, axis=1)
 
 
     # Project to lab frame 
     couple_lab = _batch_matvec(_batch_matrix_transpose(director_collection), response_couple_local)
 
     # Save results
-    response_couple_sleeve[:, :] = couple_lab
+    response_couple_sleeve[:, :] = _batch_product_k_ik_to_ik(1/(length*width),couple_lab)
     rotation_sleeve[1, :] = sin_bend
     rotation_sleeve[2, :] = sin_twist
     external_torques += couple_lab

@@ -682,10 +682,8 @@ class RibbonSleeveContact(NoContact):
         self.alpha = alpha
         self.poisson_ratio = poisson_ratio
 
-        self.w_twist = np.ones(N_quad) / N_quad
-        self.w_bend = np.ones(N_quad) / N_quad
-
-        self.base_quad = np.linspace(-0.5, 0.5, N_quad)  
+        self.w_grid = np.ones(N_quad) / N_quad
+        self.base_quad = np.linspace(-0.5, 0.5, N_quad)[np.newaxis, :]
 
 
     def _check_systems_validity(
@@ -758,8 +756,7 @@ class RibbonSleeveContact(NoContact):
             system_one.lengths,
             system_one.director_collection,
             system_one.external_torques,
-            self.w_twist,
-            self.w_bend,
+            self.w_grid,
             self.base_quad, 
         )
 

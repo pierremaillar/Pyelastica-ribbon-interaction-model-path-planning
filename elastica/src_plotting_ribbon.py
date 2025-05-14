@@ -8,7 +8,7 @@ import math
 import os
 
 
-def plot_3D_ribbons_from_process_solution(solution_df, solution_indices=None, n_points=20, half_width=0.1, n_arrows = 10, save_path="figure/3D_ribbons.png"):
+def plot_3D_ribbons_from_process_solution(solution_df, solution_indices=None, n_points=20, half_width=0.1, n_arrows = 10, save_path=None):
     """
     Plots 3D ribbon structures from a given partitioned solution file using Plotly.
 
@@ -120,9 +120,12 @@ def plot_3D_ribbons_from_process_solution(solution_df, solution_indices=None, n_
         )
     )
     
-    #fig.write_image(save_path)
-    fig.show()
-    return fig
+    if save_path is not None:
+        fig.savefig(save_path, bbox_inches='tight', dpi=300)
+        print(f"Plot saved to: {save_path}")
+        plt.close(fig) 
+    else:
+        plt.show()
 
 
 def process_solution_file_auto(path_s):
@@ -723,7 +726,7 @@ def sanity_check_plot(solution):
     axes[0, 0].plot(solution_max.index, (solution_l2['norm_V']))
     axes[0, 0].set_title("Steady State", **fontdict)
     axes[0, 0].set_xlabel("Time", fontsize=12)
-    axes[0, 0].set_ylabel("max|r|", fontsize=12)
+    axes[0, 0].set_ylabel("l2(|V|)", fontsize=12)
     axes[0, 0].grid(True)
 
     # Subplot 2: Time Step
@@ -784,6 +787,71 @@ def sanity_check_plot(solution):
     print(f"Final stress stat at s = 1:\nR1: {one_solution_final.R1.iloc[-1]:.4e}\nR2: {one_solution_final.R2.iloc[-1]:.4e}\nR3: {one_solution_final.R3.iloc[-1]:.4e}")
 
 
+def control_law_plot(solution):
+    solution_at_base = solution[solution.s == 0]
+    solution_at_tip = solution[solution.s == 1]
+
+    fig, axes = plt.subplots(2, 3, figsize=(18, 12))
+    fig.suptitle("BC check and control law check", fontsize=22, fontweight='bold')
+
+    fontdict = {'fontsize': 14}
+
+    # Subplot 1: X
+
+    axes[0, 0].plot(solution_at_tip.time, solution_at_tip.R3, label="R3 (internal, tip)")
+    axes[0, 0].plot(solution_at_base.time, solution_at_base.ReX, label="Rex (external, base)")
+    axes[0, 0].set_title("Forces in X-direction", **fontdict)
+    axes[0, 0].set_xlabel("Time [s]", fontsize=12)
+    axes[0, 0].set_ylabel("Force [N]", fontsize=12)
+    axes[0, 0].grid(True)
+    axes[0, 0].legend()
+
+    # Subplot 2: Y
+    
+    axes[0, 1].plot(solution_at_tip.time, solution_at_tip.R3, label="R3 (internal, tip)")
+    axes[0, 1].plot(solution_at_base.time, solution_at_base.ReY, label="ReY (external, base)")
+    axes[0, 1].set_title("Forces in Y-direction", **fontdict)
+    axes[0, 1].set_xlabel("Time [s]", fontsize=12)
+    axes[0, 1].set_ylabel("Force [N]", fontsize=12)
+    axes[0, 1].grid(True)
+    axes[0, 1].legend()
+
+    # Subplot 3: Z
+
+    axes[0, 2].plot(solution_at_tip.time, solution_at_tip.R3, label="R3 (internal, tip)")
+    axes[0, 2].plot(solution_at_base.time, solution_at_base.ReZ, label="ReZ (external, base)")
+    axes[0, 2].set_title("Forces in Z-direction", **fontdict)
+    axes[0, 2].set_xlabel("Time [s]", fontsize=12)
+    axes[0, 2].set_ylabel("Force [N]", fontsize=12)
+    axes[0, 2].grid(True)
+    axes[0, 2].legend()
+
+    # Subplot 4: Internal forces at base
+    axes[1, 0].plot(solution_at_base.time, solution_at_base.RX, label="RX (internal, base)")
+    axes[1, 0].plot(solution_at_base.time, solution_at_base.RY, label="RY (internal, base)")
+    axes[1, 0].plot(solution_at_base.time, solution_at_base.RZ, label="RZ (internal, base)")
+    axes[1, 0].set_title("Internal Forces at the Base", **fontdict)
+    axes[1, 0].set_xlabel("Time [s]", fontsize=12)
+    axes[1, 0].set_ylabel("Force [N]", fontsize=12)
+    axes[1, 0].grid(True)
+    axes[1, 0].legend()
+
+    # Subplot 5: Internal forces at tip
+    axes[1, 1].plot(solution_at_tip.time, solution_at_tip.RX, label="RX (internal, tip)")
+    axes[1, 1].plot(solution_at_tip.time, solution_at_tip.RY, label="RY (internal, tip)")
+    axes[1, 1].plot(solution_at_tip.time, solution_at_tip.RZ, label="RZ (internal, tip)")
+    axes[1, 1].set_title("Internal Forces at the Tip", **fontdict)
+    axes[1, 1].set_xlabel("Time [s]", fontsize=12)
+    axes[1, 1].set_ylabel("Force [N]", fontsize=12)
+    axes[1, 1].grid(True)
+    axes[1, 1].legend()
+
+    # Subplot 6: Leave empty
+    axes[1, 2].axis('off')
+
+    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+    plt.show()
+    
 
 
 def build_incremental_discretized_paths(path_df, direction, normal, n_points, M, min_length):
