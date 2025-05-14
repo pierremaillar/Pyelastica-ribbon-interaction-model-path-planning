@@ -41,11 +41,11 @@ for idx, stat in enumerate(paths_points):
                                                                         final_time = final_time, k_p_input_force = kp)
         timestepper = PositionVerlet()
         total_steps = int(final_time / dt)
-        nan_detected, _ = integrate(timestepper, Ribbon_sim, final_time, total_steps, time_display_up = 60)
+        nan_detected, end_time = integrate(timestepper, Ribbon_sim, final_time, total_steps, time_display_up = 60)
         
         if nan_detected:
             dt /=1.2
-            print("New dt:",dt)
+            print("New dt:",dt,"\n")
             if end_time > 1e4*dt*1.2:
                 kp /=2
                 print("New kp", kp)
