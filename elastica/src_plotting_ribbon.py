@@ -264,8 +264,8 @@ def plot_multiple_solutions(
     num_solutions = len(solution_dfs)
 
     num_vars = len(variables)
-    ncols = math.ceil(math.sqrt(num_vars))
-    nrows = math.ceil(num_vars / ncols)
+    ncols = math.ceil(num_vars/3)
+    nrows = 3
     fig_width = ncols * 4
     fig_height = nrows * 3
 
@@ -342,8 +342,9 @@ def plot_multiple_solutions_sleeve(
     num_solutions = len(solution_dfs)
 
     num_vars = len(variables)
-    ncols = math.ceil(math.sqrt(num_vars))
-    nrows = math.ceil(num_vars / ncols)
+
+    ncols = 3
+    nrows = math.ceil(num_vars/3)
     fig_width = ncols * 4
     fig_height = nrows * 3
 

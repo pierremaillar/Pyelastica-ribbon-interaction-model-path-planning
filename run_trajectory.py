@@ -14,13 +14,13 @@ direction = np.array([0,-1,0])
 normal = np.array([0,0,1])
 path_plan = pd.read_csv("path_0_0__15_-20__20_-40.csv")
 M = 10 # number of step in a path
+kp = 1.2
 min_length = 5
-
-final_time = 0.1
+final_time = 0.075
 
 
 paths_points, base_length = build_incremental_discretized_paths(path_plan, direction, normal, N_points, M, min_length)
-plot_trajectory(paths_points[-1])
+
 
 
 
@@ -36,7 +36,9 @@ for idx, stat in enumerate(paths_points):
     
     running = True
     while running:
-        ribbon_output_list, sleeve_output_list, Ribbon_sim = create_env(initial_position, d2_initial, sleeve_position, d2_sleeve, base_length = base_length[idx], dt = dt, final_time = final_time)
+        ribbon_output_list, sleeve_output_list, Ribbon_sim = create_env(initial_position, d2_initial, sleeve_position, d2_sleeve, 
+                                                                        base_length = base_length[idx], dt = dt, 
+                                                                        final_time = final_time, k_p_input_force = kp)
         timestepper = PositionVerlet()
         total_steps = int(final_time / dt)
         nan_detected, _ = integrate(timestepper, Ribbon_sim, final_time, total_steps, time_display_up = 60)
@@ -44,6 +46,9 @@ for idx, stat in enumerate(paths_points):
         if nan_detected:
             dt /=1.2
             print("New dt:",dt)
+            if end_time > 1e4*dt*1.2:
+                kp /=2
+                print("New kp", kp)
         else:
             running = False
             
