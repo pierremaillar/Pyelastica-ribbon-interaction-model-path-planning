@@ -21,7 +21,7 @@ from elastica.src_plotting_ribbon import *
 
 
 
-def create_env(initial_position,d2_initial, position_sleeve, d2_sleeve, 
+def create_env(initial_position,d1_initial, position_sleeve, d1_sleeve, 
                target_force = 1e-1, k_p_input_force = 0.9, ramp_up_time = 0.03,
                dt = 2e-8, final_time = 0.1, 
                base_length = 50, thickness = 0.1, width = 5, 
@@ -36,13 +36,15 @@ def create_env(initial_position,d2_initial, position_sleeve, d2_sleeve,
     n_elem = initial_position.shape[1] - 1    
     position_diff = initial_position[..., 1:] - initial_position[..., :-1]
     rest_lengths = _batch_norm(position_diff)
-
     d3 = position_diff / rest_lengths
-    d1 = _batch_cross(d2_initial,d3)
-    d1 = d1 / _batch_norm(d1)
-
     
-    directors = np.stack([d1,d2_initial,d3],axis=0)
+    d2 = _batch_cross(d3,d1_initial)
+    d2 = d2 / _batch_norm(d2)
+
+    d1 = _batch_cross(d2,d3)
+    d1 = d1 / _batch_norm(d1)    
+    
+    directors = np.stack([d1,d2,d3],axis=0)
     
     
     shearable_rod = Ribbon1D.straight_ribbon(
@@ -106,14 +108,8 @@ def create_env(initial_position,d2_initial, position_sleeve, d2_sleeve,
     
     """ Set contact """
 
-    position_diff = position_sleeve[..., 1:] - position_sleeve[..., :-1]
-    rest_lengths = _batch_norm(position_diff)
-    d3 = position_diff / rest_lengths
-    d1 = _batch_cross(d2_sleeve,d3)
-    d1 = d1 / _batch_norm(d1)
 
-
-    sleeve = Sleeve(position_sleeve, d1)
+    sleeve = Sleeve(position_sleeve, d1_sleeve)
     Sim_env.append(sleeve)
 
 
@@ -204,7 +200,7 @@ def create_env(initial_position,d2_initial, position_sleeve, d2_sleeve,
 
 ######################################################################################################
 
-def create_env_torsional_buckling(initial_position,d2_initial,
+def create_env_torsional_buckling(initial_position,d1_initial,
                tip_force = np.array([0.0, 2.0e-2, 2.0e-4]), ramp_up_time = 0.05,
                dt = 2e-8, final_time = 0.1, 
                base_length = 50, thickness = 0.1, width = 5, 
@@ -219,10 +215,13 @@ def create_env_torsional_buckling(initial_position,d2_initial,
     n_elem = initial_position.shape[1] - 1    
     position_diff = initial_position[..., 1:] - initial_position[..., :-1]
     rest_lengths = _batch_norm(position_diff)
-
     d3 = position_diff / rest_lengths
-    d1 = _batch_cross(d2_initial,d3)
-    d1 = d1 / _batch_norm(d1)
+    
+    d2 = _batch_cross(d3,d1_initial)
+    d2 = d2 / _batch_norm(d2)
+
+    d1 = _batch_cross(d2,d3)
+    d1 = d1 / _batch_norm(d1)  
 
     
     directors = np.stack([d1,d2_initial,d3],axis=0)

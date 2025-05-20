@@ -861,89 +861,188 @@ def control_law_plot(solution):
     plt.show()
     
 
-
 def build_incremental_discretized_paths(path_df, direction, normal, n_points, M, min_length):
+    """
+    Build discretized paths with twist support.
+    
+    Parameters:
+    -----------
+    path_df : DataFrame
+        DataFrame with columns 'type', 'length (mm)', 'curvature (1/mm)', and optionally 'twist (rad/mm)'
+    direction : ndarray
+        Initial direction vector
+    normal : ndarray
+        Initial normal vector
+    n_points : int
+        Number of points in the final path
+    M : int
+        Number of paths to generate with different lengths
+    min_length : float
+        Minimum path length
+        
+    Returns:
+    --------
+    all_paths : list of arrays
+        List of path arrays, each with shape (3, n_points)
+    lengths : ndarray
+        Array of path lengths
+    all_normals : list of arrays
+        List of normal vectors along each path segment, each with shape (3, n_points-1)
+    """
     direction = direction / np.linalg.norm(direction)
     normal = normal - direction * np.dot(direction, normal)
     normal /= np.linalg.norm(normal)
     binormal = np.cross(direction, normal)
-
+    
     total_length = path_df['length (mm)'].sum()
     max_length = total_length
     lengths = np.linspace(min_length, max_length, M)
-
+    
     all_paths = []
-
+    all_normals = []  # Store normals between consecutive points
+    
     for target_length in lengths:
         path_points = [np.zeros(3)]
+        segment_normals = []  # Will store normals for segments between points
+        
         pos = np.zeros(3)
-        T = direction
-        N = normal
-        B = np.cross(T, N)
-
+        T = direction.copy()
+        N = normal.copy()
+        B = binormal.copy()
+        
         accumulated_length = 0.0
+        
         for idx, row in path_df.iterrows():
             seg_type = row['type']
             L = row['length (mm)']
             k = row['curvature (1/mm)']
-
+            # Get twist rate if it exists, otherwise default to 0
+            twist_rate = row.get('twist (rad/mm)', 0.0)
+            
             remaining_length = target_length - accumulated_length
             if remaining_length < 0:
                 break
-
+                
             # Clip segment if needed
             seg_length = min(L, remaining_length)
             if seg_length < 1e-6:
                 continue
-
-            # Allocate points
-            num_pts = n_points if seg_length == target_length else max(2, int(np.ceil((seg_length / target_length) * n_points)))
-            ds = seg_length / (num_pts - 1)
-
+                
+            # Allocate points based on segment proportion
+            # Important: for large n_points, this ensures proper distribution
+            seg_points = max(2, int(np.ceil((seg_length / target_length) * n_points)))
+            ds = seg_length / (seg_points - 1)
+            
             if seg_type == 'line' or np.isclose(k, 0.0):
-                for i in range(1, num_pts):
+                # Handle straight line segment
+                for i in range(1, seg_points):
+                    # Apply twist around tangent
+                    if not np.isclose(twist_rate, 0.0):
+                        twist_angle = twist_rate * ds
+                        twist_matrix = skew_rotation(T, twist_angle)
+                        N = twist_matrix @ N
+                        B = twist_matrix @ B
+                        
+                        # Ensure orthonormality
+                        B = np.cross(T, N)
+                        B /= np.linalg.norm(B)
+                        N = np.cross(B, T)
+                        N /= np.linalg.norm(N)
+                    
+                    # Store the normal for this segment before moving
+                    segment_normals.append(N.copy())
+                    
+                    # Move along tangent
                     pos = pos + T * ds
                     path_points.append(pos.copy())
             else:  # arc
                 R = 1 / k
                 theta_total = seg_length * k
-                dtheta = theta_total / (num_pts - 1)
+                dtheta = theta_total / (seg_points - 1)
                 center = pos + N * R
-
-                for i in range(1, num_pts):
-                    theta = i * dtheta
-                    rot_axis = B
-                    rot_matrix = (
-                        np.cos(theta) * np.eye(3) +
-                        np.sin(theta) * skew(rot_axis) +
-                        (1 - np.cos(theta)) * np.outer(rot_axis, rot_axis)
-                    )
-                    rotated_vector = rot_matrix @ (-N * R)
-                    new_pos = center + rotated_vector
-                    path_points.append(new_pos.copy())
-
-                # Update frame
-                T = rot_matrix @ T
-                N = rot_matrix @ N
-                B = np.cross(T, N)
-                B /= np.linalg.norm(B)
-                pos = path_points[-1]
-
+                
+                for i in range(1, seg_points):
+                    # Store the normal for this segment before moving
+                    segment_normals.append(N.copy())
+                    
+                    # Apply curvature
+                    theta = dtheta
+                    rot_matrix = skew_rotation(B, theta)
+                    
+                    # Update position and frame for curvature
+                    pos = center + rot_matrix @ (pos - center)
+                    T = rot_matrix @ T
+                    N = rot_matrix @ N
+                    B = rot_matrix @ B
+                    
+                    # Apply twist if needed
+                    if not np.isclose(twist_rate, 0.0):
+                        twist_angle = twist_rate * ds
+                        twist_matrix = skew_rotation(T, twist_angle)
+                        N = twist_matrix @ N
+                        B = twist_matrix @ B
+                    
+                    # Ensure orthonormality
+                    T /= np.linalg.norm(T)
+                    B = np.cross(T, N)
+                    B /= np.linalg.norm(B)
+                    N = np.cross(B, T)
+                    N /= np.linalg.norm(N)
+                    
+                    # Store current position
+                    path_points.append(pos.copy())
+                    
+                    # Move center for next iteration to maintain proper arc shape
+                    center = pos + N * R
+            
             accumulated_length += seg_length
             if accumulated_length >= target_length:
                 break
-
-        # Interpolate to ensure exactly `n_points`
+        
+        # Interpolate to ensure exactly `n_points` points
         path_points = np.array(path_points)
-        distances = np.linalg.norm(np.diff(path_points, axis=0), axis=1)
-        arc_lengths = np.insert(np.cumsum(distances), 0, 0.0)
-        target_arc = np.linspace(0, arc_lengths[-1], n_points)
-        interp_path = np.zeros((n_points, 3))
-        for j in range(3):
-            interp_path[:, j] = np.interp(target_arc, arc_lengths, path_points[:, j])
-        all_paths.append(interp_path.T)  # shape (3, n_points)
-
-    return all_paths, lengths
+        segment_normals = np.array(segment_normals)
+        
+        if len(path_points) > 1:
+            # Calculate distances between consecutive points
+            distances = np.linalg.norm(np.diff(path_points, axis=0), axis=1)
+            arc_lengths = np.insert(np.cumsum(distances), 0, 0.0)
+            target_arc = np.linspace(0, arc_lengths[-1], n_points)
+            
+            # Interpolate path points
+            interp_path = np.zeros((n_points, 3))
+            for j in range(3):
+                interp_path[:, j] = np.interp(target_arc, arc_lengths, path_points[:, j])
+            
+            # For the segment normals, we need n_points-1 normals
+            # Calculate the centers of segments in the interpolated path
+            segment_centers = (target_arc[:-1] + target_arc[1:]) / 2
+            
+            # Interpolate normals at segment centers
+            interp_normals = np.zeros((n_points-1, 3))
+            
+            if len(segment_normals) > 0:
+                # Calculate the centers of original segments for interpolation reference
+                original_segment_centers = (arc_lengths[:-1] + arc_lengths[1:]) / 2
+                
+                for j in range(3):
+                    interp_normals[:, j] = np.interp(segment_centers, original_segment_centers, segment_normals[:, j])
+                
+                # Normalize interpolated normals
+                norms = np.linalg.norm(interp_normals, axis=1, keepdims=True)
+                interp_normals = interp_normals / norms
+            else:
+                # Handle edge case with no segments
+                interp_normals = np.tile(normal, (n_points-1, 1))
+            
+            all_paths.append(interp_path.T)  # shape (3, n_points)
+            all_normals.append(interp_normals.T)  # shape (3, n_points-1)
+        else:
+            # Handle edge case with a single point (no segments)
+            all_paths.append(np.zeros((3, n_points)))
+            all_normals.append(np.tile(normal.reshape(3, 1), n_points-1))  # Empty normal array
+    
+    return all_paths, lengths, all_normals
 
 def skew(v):
     """Skew-symmetric matrix for cross product"""
@@ -953,6 +1052,16 @@ def skew(v):
         [-v[1], v[0], 0]
     ])
 
+def skew_rotation(axis, angle):
+    """
+    Create rotation matrix from axis and angle using Rodrigues' formula
+    """
+    axis = axis / np.linalg.norm(axis)
+    return (
+        np.cos(angle) * np.eye(3) +
+        np.sin(angle) * skew(axis) +
+        (1 - np.cos(angle)) * np.outer(axis, axis)
+    )
 def plot_trajectory(path_points, show=True, color='b', label='Trajectory'):
     fig = plt.figure(figsize=(8, 6))
     ax = fig.add_subplot(111, projection='3d')
@@ -967,10 +1076,15 @@ def plot_trajectory(path_points, show=True, color='b', label='Trajectory'):
     ax.set_xlabel('X')
     ax.set_ylabel('Y')
     ax.set_zlabel('Z')
+    limit = np.max(abs(path_points))
+    
+    ax.set_xlim([-limit, limit])
+    ax.set_ylim([-limit, limit])
+    ax.set_zlim([-limit, limit])
+    
     ax.set_title('Discretized 3D Path')
     ax.legend()
     ax.grid(True)
-    ax.axis('auto')
     
     if show:
         plt.tight_layout()
