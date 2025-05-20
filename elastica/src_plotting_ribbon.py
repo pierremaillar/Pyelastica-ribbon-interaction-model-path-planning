@@ -735,6 +735,7 @@ def sanity_check_plot(solution):
     axes[0, 0].set_title("Steady State", **fontdict)
     axes[0, 0].set_xlabel("Time", fontsize=12)
     axes[0, 0].set_ylabel("l2(|V|)", fontsize=12)
+    axes[0, 0].set_yscale('log')
     axes[0, 0].grid(True)
 
     # Subplot 2: Time Step
