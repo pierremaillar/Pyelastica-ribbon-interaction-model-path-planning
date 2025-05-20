@@ -224,7 +224,7 @@ def create_env_torsional_buckling(initial_position,d1_initial,
     d1 = d1 / _batch_norm(d1)  
 
     
-    directors = np.stack([d1,d2_initial,d3],axis=0)
+    directors = np.stack([d1,d2,d3],axis=0)
     
     
     shearable_rod = Ribbon1D.straight_ribbon(
