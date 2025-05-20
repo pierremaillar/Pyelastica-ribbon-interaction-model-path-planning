@@ -199,3 +199,130 @@ def create_env(initial_position,d2_initial, position_sleeve, d2_sleeve,
     Sim_env.finalize()
 
     return ribbon_output_list, sleeve_output_list, Sim_env
+
+
+
+######################################################################################################
+
+def create_env_torsional_buckling(initial_position,d2_initial,
+               tip_force = np.array([0.0, 2.0e-2, 2.0e-4]), ramp_up_time = 0.05,
+               dt = 2e-8, final_time = 0.1, 
+               base_length = 50, thickness = 0.1, width = 5, 
+               density = 1.017e-7, nu = 27e1, E = 2.77e3, poisson_ratio = 0.34, num_lagrange = 1e2
+              ):
+
+    class Ribbon(BaseSystemCollection, Contact, Forcing, Constraints, CallBacks, Damping):
+        pass
+    
+    Sim_env = Ribbon()
+
+    n_elem = initial_position.shape[1] - 1    
+    position_diff = initial_position[..., 1:] - initial_position[..., :-1]
+    rest_lengths = _batch_norm(position_diff)
+
+    d3 = position_diff / rest_lengths
+    d1 = _batch_cross(d2_initial,d3)
+    d1 = d1 / _batch_norm(d1)
+
+    
+    directors = np.stack([d1,d2_initial,d3],axis=0)
+    
+    
+    shearable_rod = Ribbon1D.straight_ribbon(
+        n_elem,
+        np.zeros((3,)),
+        d3[:,0],
+        d1[:,0],
+        base_length,
+        thickness,
+        width,
+        density,
+        youngs_modulus=E,
+        shear_modulus=E*num_lagrange, # influence the shearability of the ribbon
+        poisson_ratio=0.34,
+        position = initial_position,
+        directors = directors,
+    )
+    
+    
+    Sim_env.append(shearable_rod)
+    
+    
+    """ Add damping """
+    Sim_env.dampen(shearable_rod).using(
+        AnalyticalLinearDamper,
+        damping_constant=nu,
+        time_step=dt,
+    )
+    
+    
+    # Impact steady state !!! Add error when comparing with auto
+    #Rod.dampen(shearable_rod).using(
+    #         LaplaceDissipationFilter,
+    #         filter_order=2,   # order of the filter (geater order means less damping)
+    #    )
+    
+
+    """ Set up boundary conditions """
+    Sim_env.constrain(shearable_rod).using(
+        GeneralConstraint,
+        constrained_position_idx=(0,),
+        constrained_director_idx=(0,),
+        translational_constraint_selector= np.array([True, True, True]) , # Fix all dirsplacement
+        rotational_constraint_selector=np.array([True, True, True])  # Fix all rotations
+    )
+    
+    
+    
+    origin_force = np.array([0.0,0.0,0.0])
+    Sim_env.add_forcing_to(shearable_rod).using(
+        EndpointForces, origin_force, tip_force, ramp_up_time=ramp_up_time
+    )
+
+    
+    
+    
+    class RibbonCallBack(CallBackBaseClass):
+        """
+        Call back function for Ribbon object
+        """
+    
+        def __init__(self, step_skip: int, callback_params: dict):
+            CallBackBaseClass.__init__(self)
+            self.every = step_skip
+            self.callback_params = callback_params
+    
+        def make_callback(self, system, time, current_step: int):
+    
+            if current_step % self.every == 0:
+    
+                self.callback_params["time"].append(time)
+                self.callback_params["step"].append(current_step)
+                self.callback_params["position"].append(system.position_collection.copy())
+                self.callback_params["velocity"].append(system.velocity_collection.copy())
+                self.callback_params["curvature"].append(system.kappa.copy())
+                self.callback_params["sigma"].append(system.sigma.copy())
+                self.callback_params["internal_stress"].append(system.internal_stress.copy())
+                self.callback_params["internal_forces"].append(system.internal_forces.copy())
+                self.callback_params["external_forces"].append(system.external_forces.copy())
+                self.callback_params["internal_couple"].append(system.internal_couple.copy())
+                self.callback_params["directors"].append(system.director_collection.copy())
+                self.callback_params["dilatation"].append(system.dilatation.copy())
+                self.callback_params["tangents"].append(system.tangents.copy())
+                
+            
+                
+                return
+                
+    
+    step_skip= int(final_time/dt/1000)
+    
+    ribbon_output_list = defaultdict(list)
+    
+    Sim_env.collect_diagnostics(shearable_rod).using(
+        RibbonCallBack, step_skip=step_skip, callback_params=ribbon_output_list
+    )
+
+    Sim_env.finalize()
+
+    return ribbon_output_list, Sim_env

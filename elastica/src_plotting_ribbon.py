@@ -133,7 +133,7 @@ def plot_3D_ribbons_from_process_solution(solution_df, solution_indices=None, n_
         print(f"Plot saved to: {save_path}")
         plt.close(fig) 
     else:
-        plt.show()
+        return fig
 
 
 def process_solution_file_auto(path_s):
@@ -983,26 +983,39 @@ def color_function(f1, m3, n_points_width, a):
     return stress
 
 
-def plot_ribbon_with_views(X_surf, Y_surf, Z_surf, colors, stress_cmap, min_value, max_value, axes=None):
-
+def plot_ribbon_with_views(X_surf, Y_surf, Z_surf, path, colors, stress_cmap, min_value, max_value, axes=None):
     def plot_single_view(ax, elev, azim, title, show_colorbar=False):
         ax.clear()  # Clear previous contents
-
+        
         # Apply surface colors
         normalized_colors = Normalize(vmin=min_value, vmax=max_value)(colors)
         rgba_colors = stress_cmap(normalized_colors)
-        ax.plot_surface(Z_surf, X_surf, Y_surf,
-                        facecolors=rgba_colors, alpha=1, zorder=2,
-                        cstride=1, rstride=1, shade=False)
-        ax.plot(path)
 
+    
+        line = ax.plot(path[2], 
+                      path[0], 
+                      path[1], 
+                      linestyle='--', 
+                      color='red',
+                      linewidth=2,
+                      zorder = 10, 
+                      solid_capstyle='round')  
+        
+        surf = ax.plot_surface(Z_surf, X_surf, Y_surf, 
+                              facecolors=rgba_colors, 
+                              alpha=1, 
+                              cstride=1, 
+                              rstride=1, 
+                              zorder = 1, 
+                              shade=False)
+        
         if show_colorbar:
             mappable = plt.cm.ScalarMappable(cmap=stress_cmap)
             mappable.set_array(np.linspace(min_value, max_value, 100))
             if not hasattr(ax, 'colorbar'):
                 ax.colorbar = plt.colorbar(mappable, ax=ax, shrink=0.45, aspect=10)
-            ax.colorbar.set_label("External Stress [Pa]")
-
+                ax.colorbar.set_label("External Stress [Pa]")
+        
         ax.view_init(elev=elev, azim=azim)
         ax.xaxis.set_pane_color('gray')
         ax.yaxis.set_pane_color('gray')
@@ -1014,7 +1027,7 @@ def plot_ribbon_with_views(X_surf, Y_surf, Z_surf, colors, stress_cmap, min_valu
         ax.set_ylim([-25, 25])
         ax.set_zlim([-50, 0])
         ax.set_title(title)
-
+    
     # If no axes are passed, create new ones
     if axes is None:
         fig = plt.figure(figsize=(18, 6))
@@ -1023,17 +1036,17 @@ def plot_ribbon_with_views(X_surf, Y_surf, Z_surf, colors, stress_cmap, min_valu
             fig.add_subplot(132, projection='3d'),
             fig.add_subplot(133, projection='3d'),
         ]
-
+    
     # Plot into the given axes
     plot_single_view(axes[0], elev=22.5, azim=-45, title="Isometric View")
     plot_single_view(axes[1], elev=5, azim=-90, title="Front View")
     plot_single_view(axes[2], elev=5, azim=0, title="Side View", show_colorbar=True)
-
+    
     return axes
 
 
 
-def Plot_stress_field(solutions, solutions_sleeve, L, a, n_points=20, axes=None, min_value=None, max_value=None):
+def Plot_stress_field(solutions, solutions_sleeve, path, L, a, n_points=20, axes=None, min_value=None, max_value=None):
 
 
     # Define colors for the stress colormap

@@ -2,9 +2,10 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --time=0:10:00
-#SBATCH --cpus-per-task 32
-#SBATCH --output=result/output.txt
-#SBATCH --error=result/error.txt
+#SBATCH --cpus-per-task 16
+#SBATCH --account=microbs
+#SBATCH --output=result/output_torsional_buckling.txt
+#SBATCH --error=result/error_torsional_buckling.txt
 
-python run_solver.py
+python run_torsional_buckling.py
 
