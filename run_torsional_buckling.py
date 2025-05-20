@@ -15,7 +15,7 @@ t = 0.5
 L = 50
 
 
-force_adimentional = np.array([0.0, 15, 0.15])
+force_adimentional = np.array([0.0, 0.15, 15])
 force_newton = force_adimentional * (Y * a * t**3 / 12 / L**2)
 
 print(force_newton)
