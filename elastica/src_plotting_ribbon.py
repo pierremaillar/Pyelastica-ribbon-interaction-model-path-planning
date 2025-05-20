@@ -994,6 +994,7 @@ def plot_ribbon_with_views(X_surf, Y_surf, Z_surf, colors, stress_cmap, min_valu
         ax.plot_surface(Z_surf, X_surf, Y_surf,
                         facecolors=rgba_colors, alpha=1, zorder=2,
                         cstride=1, rstride=1, shade=False)
+        ax.plot(path)
 
         if show_colorbar:
             mappable = plt.cm.ScalarMappable(cmap=stress_cmap)
@@ -1117,7 +1118,7 @@ def Plot_stress_field(solutions, solutions_sleeve, L, a, n_points=20, axes=None,
     colors = np.concatenate(colors, axis=0)
 
     if axes is not None:
-        axes = plot_ribbon_with_views(X_surf, Y_surf, Z_surf, colors, stress_cmap, min_value, max_value, axes)
+        axes = plot_ribbon_with_views(X_surf, Y_surf, Z_surf, path, colors, stress_cmap, min_value, max_value, axes)
 
 
 
@@ -1162,7 +1163,7 @@ def compute_global_stress_range(all_solutions, all_sleeves, a, lengths, n_points
     return min_val, max_val
 
 
-def animate_stress_field_3views(all_solutions, all_sleeves, lengths, a, max_frame, n_points=20, interval=200):
+def animate_stress_field_3views(all_solutions, all_sleeves, all_path, lengths, a, max_frame, n_points=20, interval=200):
     min_val, max_val = compute_global_stress_range(all_solutions, all_sleeves, a, lengths, n_points)
 
     fig = plt.figure(figsize=(18, 6))
@@ -1174,9 +1175,10 @@ def animate_stress_field_3views(all_solutions, all_sleeves, lengths, a, max_fram
     def update(frame):
         solutions = all_solutions[frame]
         solutions_sleeve = all_sleeves[frame]
+        path = all_path[frame]
         L = lengths[frame]
 
-        Plot_stress_field(solutions, solutions_sleeve, L, a, n_points=n_points,
+        Plot_stress_field(solutions, solutions_sleeve, path, L, a, n_points=n_points,
                           axes=axes, min_value=min_val, max_value=max_val)
 
         return axes
