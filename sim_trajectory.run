@@ -1,0 +1,11 @@
+#!/bin/bash -l
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --time=12:00:00
+#SBATCH --cpus-per-task 16
+#SBATCH --account=microbs
+#SBATCH --output=result/output_trajectory.txt
+#SBATCH --error=result/error_trajectory.txt
+
+python run_trajectory.py
+

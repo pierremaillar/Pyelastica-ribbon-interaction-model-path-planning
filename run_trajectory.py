@@ -17,6 +17,7 @@ path_plan['twist (rad/mm)'] = [0, 4*np.pi/180, 0, 4*np.pi/180]
 M = 50 # number of step in a path
 min_length = 5
 final_time = 0.1
+kp=1.2
 
 
 paths_points, base_length, normals = build_incremental_discretized_paths(path_plan, direction, normal, N_points, M, min_length)
@@ -28,7 +29,7 @@ for stat, normal in zip(paths_points, normals):
     d1_initial = normal
     initial_position = stat 
     sleeve_position = initial_position
-    d1_sleeve = d2_initial
+    d1_sleeve = d1_initial
 
     dt = 1e-7
     
