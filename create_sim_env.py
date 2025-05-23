@@ -267,7 +267,7 @@ def create_env_torsional_buckling(initial_position,d1_initial,
         GeneralConstraint,
         constrained_position_idx=(0,),
         constrained_director_idx=(0,),
-        translational_constraint_selector= np.array([True, True, True]) , # Fix all dirsplacement
+        translational_constraint_selector= np.array([True, True, True]) , # Fix all displacement
         rotational_constraint_selector=np.array([True, True, True])  # Fix all rotations
     )
     

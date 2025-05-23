@@ -12,8 +12,11 @@ N_points = 50
 
 direction = np.array([0,-1,0])
 normal = np.array([0,0,1])
-path_plan = pd.read_csv("path_0_0__15_-20__20_-40.csv")
-path_plan['twist (rad/mm)'] = [0, 4*np.pi/180, 0, 4*np.pi/180]
+#path_plan = pd.read_csv("path_0_0__15_-20__20_-40.csv")
+#path_plan['twist (rad/mm)'] = [0, 4*np.pi/180, 0, 4*np.pi/180]
+path_plan = pd.read_csv("path_complex.csv")
+path_plan['twist (rad/mm)'] = [np.pi/20, 0, 0,0,0, -np.pi/20,0]
+
 M = 50 # number of step in a path
 min_length = 5
 final_time = 0.1

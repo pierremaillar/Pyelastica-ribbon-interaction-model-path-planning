@@ -11,6 +11,10 @@ import matplotlib.animation as animation
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.colors import Normalize
 from mpl_toolkits.mplot3d import Axes3D
+from scipy.interpolate import interp1d
+
+
+
 
 
 
@@ -336,15 +340,15 @@ def plot_multiple_solutions_sleeve(
         ('displacement_X', 'Displacement on X'),
         ('displacement_Y', 'Displacement on Y'),
         ('displacement_Z', 'Displacement on Z'),
-        ('response_force_X', 'Force on X'),
-        ('response_force_Y', 'Force on Y'),
-        ('response_force_Z', 'Force on Z'),
+        ('response_force_X', 'Pressure on X [N/mm^2]'),
+        ('response_force_Y', 'Pressure on Y [N/mm^2]'),
+        ('response_force_Z', 'Pressure on Z [N/mm^2]'),
         ('rotation_angle_d1', 'Rotation angle d1'),
         ('rotation_angle_d2', 'Rotation angle d2'),
         ('rotation_angle_d3', 'Rotation angle d3'),
-        ('response_couple_X', 'Couple on X'),
-        ('response_couple_Y', 'Couple on Y'),
-        ('response_couple_Z', 'Couple on Z'),
+        ('response_couple_X', 'Distibuted Couple on X [N/mm] '),
+        ('response_couple_Y', 'Distibuted Couple on Y [N/mm] '),
+        ('response_couple_Z', 'Distibuted Couple on Z [N/mm] '),
     ],
     save_path=None
 ):
@@ -700,7 +704,7 @@ def process_solution_elastica_sleeve(pp_list_read):
 
 
 
-def sanity_check_plot(solution):
+def sanity_check_plot(solution, save_path = None):
 
     # Extra fields
     solution["dilatation_error"] = solution["dilatation"] - 1
@@ -735,6 +739,7 @@ def sanity_check_plot(solution):
     axes[0, 0].set_title("Steady State", **fontdict)
     axes[0, 0].set_xlabel("Time", fontsize=12)
     axes[0, 0].set_ylabel("l2(|V|)", fontsize=12)
+    axes[0, 0].set_yscale('log')
     axes[0, 0].grid(True)
 
     # Subplot 2: Time Step
@@ -788,14 +793,20 @@ def sanity_check_plot(solution):
     axes[3, 1].axis('off')
 
     plt.tight_layout(rect=[0, 0.03, 1, 0.95])
-    plt.show()
+    
+    if save_path is not None:
+        fig.savefig(save_path, bbox_inches='tight', dpi=300)
+        print(f"Plot saved to: {save_path}")
+        plt.close(fig) 
+    else:
+        plt.show()
 
     print(f"Final stress stat at s = 0:\nR1: {one_solution_final.R1.iloc[0]:.4e}\nR2: {one_solution_final.R2.iloc[0]:.4e}\nR3: {one_solution_final.R3.iloc[0]:.4e}")
 
     print(f"Final stress stat at s = 1:\nR1: {one_solution_final.R1.iloc[-1]:.4e}\nR2: {one_solution_final.R2.iloc[-1]:.4e}\nR3: {one_solution_final.R3.iloc[-1]:.4e}")
 
 
-def control_law_plot(solution):
+def control_law_plot(solution, save_path = None):
     solution_at_base = solution[solution.s == 0]
     solution_at_tip = solution[solution.s == 1]
 
@@ -858,7 +869,13 @@ def control_law_plot(solution):
     axes[1, 2].axis('off')
 
     plt.tight_layout(rect=[0, 0.03, 1, 0.95])
-    plt.show()
+
+    if save_path is not None:
+        fig.savefig(save_path, bbox_inches='tight', dpi=300)
+        print(f"Plot saved to: {save_path}")
+        plt.close(fig) 
+    else:
+        plt.show()
     
 
 def build_incremental_discretized_paths(path_df, direction, normal, n_points, M, min_length):
@@ -1062,6 +1079,7 @@ def skew_rotation(axis, angle):
         np.sin(angle) * skew(axis) +
         (1 - np.cos(angle)) * np.outer(axis, axis)
     )
+    
 def plot_trajectory(path_points, show=True, color='b', label='Trajectory'):
     fig = plt.figure(figsize=(8, 6))
     ax = fig.add_subplot(111, projection='3d')
@@ -1094,6 +1112,7 @@ def plot_trajectory(path_points, show=True, color='b', label='Trajectory'):
 def color_function(f1, m3, n_points_width, a):
 
     stress = np.linspace(a/2,-a/2,n_points_width)*12*m3/a**2+f1
+    stress /=1e3
     return stress
 
 
@@ -1105,30 +1124,36 @@ def plot_ribbon_with_views(X_surf, Y_surf, Z_surf, path, colors, stress_cmap, mi
         normalized_colors = Normalize(vmin=min_value, vmax=max_value)(colors)
         rgba_colors = stress_cmap(normalized_colors)
 
-    
-        line = ax.plot(path[2], 
-                      path[0], 
-                      path[1], 
-                      linestyle='--', 
-                      color='red',
-                      linewidth=2,
-                      zorder = 10, 
-                      solid_capstyle='round')  
-        
+
         surf = ax.plot_surface(Z_surf, X_surf, Y_surf, 
                               facecolors=rgba_colors, 
                               alpha=1, 
                               cstride=1, 
                               rstride=1, 
-                              zorder = 1, 
-                              shade=False)
+                              zorder = 10, 
+                              shade=False)    
+    
+        if path is not None:
+            line = ax.plot(path[2], 
+                          path[0], 
+                          path[1], 
+                          linestyle='--', 
+                          color='red',
+                          linewidth=2,
+                          zorder = 1, 
+                          solid_capstyle='round')  
         
         if show_colorbar:
             mappable = plt.cm.ScalarMappable(cmap=stress_cmap)
             mappable.set_array(np.linspace(min_value, max_value, 100))
             if not hasattr(ax, 'colorbar'):
-                ax.colorbar = plt.colorbar(mappable, ax=ax, shrink=0.45, aspect=10)
-                ax.colorbar.set_label("External Stress [Pa]")
+                ax.colorbar = plt.colorbar(mappable, ax=ax, shrink=0.6, aspect=15)
+                ax.colorbar.set_label("External Stress [kPa]")
+                
+                num_ticks = 9 
+                tick_values = np.linspace(min_value, max_value, num_ticks)
+                ax.colorbar.set_ticks(tick_values)
+                ax.colorbar.set_ticklabels([f"{val:.1}" for val in tick_values])
         
         ax.view_init(elev=elev, azim=azim)
         ax.xaxis.set_pane_color('gray')
@@ -1290,19 +1315,23 @@ def compute_global_stress_range(all_solutions, all_sleeves, a, lengths, n_points
     return min_val, max_val
 
 
-def animate_stress_field_3views(all_solutions, all_sleeves, all_path, lengths, a, max_frame, n_points=20, interval=200):
+def animate_stress_field_3views(all_solutions, all_sleeves, lengths, a, max_frame, 
+                                all_path = None, n_points=20, interval=200, save_path = "stress_field_animation.gif"):
     min_val, max_val = compute_global_stress_range(all_solutions, all_sleeves, a, lengths, n_points)
 
     fig = plt.figure(figsize=(18, 6))
-    ax1 = fig.add_subplot(131, projection='3d')
-    ax2 = fig.add_subplot(132, projection='3d')
-    ax3 = fig.add_subplot(133, projection='3d')
-    axes = [ax1, ax2, ax3]
+    axes = [
+            fig.add_subplot(131, projection='3d'),
+            fig.add_subplot(132, projection='3d'),
+            fig.add_subplot(133, projection='3d'),
+            ]
 
     def update(frame):
         solutions = all_solutions[frame]
         solutions_sleeve = all_sleeves[frame]
-        path = all_path[frame]
+        if all_path is not None:
+            path = all_path[frame]
+        else: path = None
         L = lengths[frame]
 
         Plot_stress_field(solutions, solutions_sleeve, path, L, a, n_points=n_points,
@@ -1311,6 +1340,36 @@ def animate_stress_field_3views(all_solutions, all_sleeves, all_path, lengths, a
         return axes
 
     ani = animation.FuncAnimation(fig, update, frames=range(max_frame + 1), interval=interval, blit=False)
-    ani.save("stress_field_animation.gif", fps=5)
+      
+    ani.save(save_path, fps=5, dpi=120)
     plt.tight_layout()
     plt.show()
+
+
+
+
+def compute_error_vector(curve1_df: pd.DataFrame,
+                         curve2_df: pd.DataFrame):
+
+    # Get s values from curve1 that will be used for interpolation
+    s_values = curve1_df['s'].values
+    
+    # Create interpolators for each coordinate of curve2
+    interpolators = {}
+    for col in ['X','Y','Z']:
+        # Use cubic interpolation if enough points, otherwise linear
+        kind = 'cubic'
+        interpolators[col] = interp1d(curve2_df['s'], curve2_df[col], kind=kind, bounds_error=False, fill_value="extrapolate")
+    
+    # Interpolate curve2 at the s values of curve1
+    interpolated_points = np.zeros((len(s_values), len(['X','Y','Z'])))
+    for i, col in enumerate(['X','Y','Z']):
+        interpolated_points[:, i] = interpolators[col](s_values)
+    
+
+    curve1_points = curve1_df[['X','Y','Z']].values
+    
+    # Compute the error vectors
+    error_vectors = curve1_points - interpolated_points
+    
+    return error_vectors, s_values
