@@ -47,7 +47,7 @@ def create_env(initial_position,d1_initial, position_sleeve, d1_sleeve,
     directors = np.stack([d1,d2,d3],axis=0)
     
     
-    shearable_rod = Ribbon1D.straight_ribbon(
+    ribbon = Ribbon1D.straight_ribbon(
         n_elem,
         np.zeros((3,)),
         d3[:,0],
@@ -64,26 +64,26 @@ def create_env(initial_position,d1_initial, position_sleeve, d1_sleeve,
     )
     
     
-    Sim_env.append(shearable_rod)
+    Sim_env.append(ribbon)
     
     
     """ Add damping """
-    Sim_env.dampen(shearable_rod).using(
+    Sim_env.dampen(ribbon).using(
         AnalyticalLinearDamper,
         damping_constant=nu,
         time_step=dt,
     )
     
     
-    # Impact steady state !!! Add error when comparing with auto
-    #Rod.dampen(shearable_rod).using(
+    # When tested, it impact steady state !!! Add error when comparing with auto
+    #Rod.dampen(ribbon).using(
     #         LaplaceDissipationFilter,
     #         filter_order=2,   # order of the filter (geater order means less damping)
     #    )
     
 
     """ Set up boundary conditions """
-    Sim_env.constrain(shearable_rod).using(
+    Sim_env.constrain(ribbon).using(
         GeneralConstraint,
         constrained_position_idx=(0,),
         constrained_director_idx=(0,),
@@ -92,7 +92,7 @@ def create_env(initial_position,d1_initial, position_sleeve, d1_sleeve,
     )
     
     
-    Sim_env.constrain(shearable_rod).using(
+    Sim_env.constrain(ribbon).using(
         GeneralConstraint,
         constrained_position_idx=(-1,),
         constrained_director_idx=(-1,),
@@ -101,7 +101,7 @@ def create_env(initial_position,d1_initial, position_sleeve, d1_sleeve,
     )
     
     
-    Sim_env.add_forcing_to(shearable_rod).using(
+    Sim_env.add_forcing_to(ribbon).using(
         ControledPushForce, target_force, d3[:,0], ramp_up_time, k_p = k_p_input_force
     )
     
@@ -113,7 +113,7 @@ def create_env(initial_position,d1_initial, position_sleeve, d1_sleeve,
     Sim_env.append(sleeve)
 
 
-    Sim_env.detect_contact_between(shearable_rod, sleeve).using(
+    Sim_env.detect_contact_between(ribbon, sleeve).using(
         RibbonSleeveContact,
         k=3*1.16e-3, #k = E_0 = 3*G_0 
         nu=0,
@@ -184,7 +184,7 @@ def create_env(initial_position,d1_initial, position_sleeve, d1_sleeve,
     ribbon_output_list = defaultdict(list)
     sleeve_output_list = defaultdict(list)
     
-    Sim_env.collect_diagnostics(shearable_rod).using(
+    Sim_env.collect_diagnostics(ribbon).using(
         RibbonCallBack, step_skip=step_skip, callback_params=ribbon_output_list
     )
     
@@ -227,7 +227,7 @@ def create_env_torsional_buckling(initial_position,d1_initial,
     directors = np.stack([d1,d2,d3],axis=0)
     
     
-    shearable_rod = Ribbon1D.straight_ribbon(
+    ribbon = Ribbon1D.straight_ribbon(
         n_elem,
         np.zeros((3,)),
         d3[:,0],
@@ -244,26 +244,26 @@ def create_env_torsional_buckling(initial_position,d1_initial,
     )
     
     
-    Sim_env.append(shearable_rod)
+    Sim_env.append(ribbon)
     
     
     """ Add damping """
-    Sim_env.dampen(shearable_rod).using(
+    Sim_env.dampen(ribbon).using(
         AnalyticalLinearDamper,
         damping_constant=nu,
         time_step=dt,
     )
     
     
-    # Impact steady state !!! Add error when comparing with auto
-    #Rod.dampen(shearable_rod).using(
+    # When tested, it impact steady state !!! Add error when comparing with auto
+    #Rod.dampen(ribbon).using(
     #         LaplaceDissipationFilter,
     #         filter_order=2,   # order of the filter (geater order means less damping)
     #    )
     
 
     """ Set up boundary conditions """
-    Sim_env.constrain(shearable_rod).using(
+    Sim_env.constrain(ribbon).using(
         GeneralConstraint,
         constrained_position_idx=(0,),
         constrained_director_idx=(0,),
@@ -274,7 +274,7 @@ def create_env_torsional_buckling(initial_position,d1_initial,
     
     
     origin_force = np.array([0.0,0.0,0.0])
-    Sim_env.add_forcing_to(shearable_rod).using(
+    Sim_env.add_forcing_to(ribbon).using(
         EndpointForces, origin_force, tip_force, ramp_up_time=ramp_up_time
     )
 
@@ -318,7 +318,7 @@ def create_env_torsional_buckling(initial_position,d1_initial,
     
     ribbon_output_list = defaultdict(list)
     
-    Sim_env.collect_diagnostics(shearable_rod).using(
+    Sim_env.collect_diagnostics(ribbon).using(
         RibbonCallBack, step_skip=step_skip, callback_params=ribbon_output_list
     )
 

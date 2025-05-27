@@ -24,7 +24,7 @@ print(force_newton)
 direction = np.array([1,0,0])
 normal = np.array([0,1,0])
 final_time = 1.75
-all_n_elem = np.array([1000,1500,2000])
+all_n_elem = np.array([5,10,50,100,150,200,300,500])
 dt = 1e-6
 base_length = L
 
@@ -57,6 +57,6 @@ for idx, n_elem in enumerate(all_n_elem):
             running = False
             print("dt set below tolerance. Break simulation")
 
-        with open(f"result/torsional_buckling_data_{idx+8}.pickle", 'wb') as handle:
+        with open(f"result/torsional_buckling_data_{idx}.pickle", 'wb') as handle:
             pickle.dump(ribbon_output_list, handle, protocol=pickle.HIGHEST_PROTOCOL)
     

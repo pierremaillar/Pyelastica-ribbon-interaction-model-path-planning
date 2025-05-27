@@ -132,12 +132,15 @@ def plot_3D_ribbons_from_process_solution(solution_df, solution_indices=None, n_
         )
     )
     
+
     if save_path is not None:
-        fig.savefig(save_path, bbox_inches='tight', dpi=300)
+        fig.write_image(save_path, width=800, height=600)
         print(f"Plot saved to: {save_path}")
-        plt.close(fig) 
-    else:
-        return fig
+    
+
+    fig.show()
+        
+    return fig
 
 
 def process_solution_file_auto(path_s):
@@ -714,6 +717,7 @@ def sanity_check_plot(solution, save_path = None):
     solution["sin_theta_txd3"] = a_dot_b / (norm_a * norm_b) - 1
 
     solution["norm_V"] = np.sqrt((solution['VX'])**2 + solution['VY']**2 + solution['VZ']**2)
+    solution["norm_pos"] = np.sqrt((solution['X'])**2 + solution['Y']**2 + solution['Z']**2)
 
     solution_mean = solution.groupby("time").mean()
     solution_max = solution.abs().groupby("time").max()
@@ -742,13 +746,13 @@ def sanity_check_plot(solution, save_path = None):
     axes[0, 0].set_yscale('log')
     axes[0, 0].grid(True)
 
-    # Subplot 2: Time Step
-    one_solution_diff.time.diff().reset_index(drop=True).plot(ax=axes[0, 1])
-    axes[0, 1].set_title("Time Step", **fontdict)
-    axes[0, 1].set_xlabel("Index", fontsize=12)
-    axes[0, 1].set_ylabel("dt", fontsize=12)
+    # Subplot 1: Steady state
+    axes[0, 1].plot(solution_max.index, solution_l2['norm_pos'].values)
+    axes[0, 1].set_title("Steady State", **fontdict)
+    axes[0, 1].set_xlabel("Time", fontsize=12)
+    axes[0, 1].set_ylabel("l2(|R|)", fontsize=12)
     axes[0, 1].grid(True)
-
+    
     # Subplot 3: Dilatation vs s
     axes[1, 0].plot(one_solution_final['s'], one_solution_final['dilatation_error'])
     axes[1, 0].set_title("Dilatation vs s", **fontdict)
@@ -789,8 +793,12 @@ def sanity_check_plot(solution, save_path = None):
     axes[3, 0].set_yscale("log")
     axes[3, 0].grid(True, which="both")
 
-    # Leave subplot (3,1) empty
-    axes[3, 1].axis('off')
+    # Subplot 8: Time Step
+    one_solution_diff.time.diff().reset_index(drop=True).plot(ax=axes[3, 1])
+    axes[3, 1].set_title("Time Step", **fontdict)
+    axes[3, 1].set_xlabel("Index", fontsize=12)
+    axes[3, 1].set_ylabel("dt", fontsize=12)
+    axes[3, 1].grid(True)
 
     plt.tight_layout(rect=[0, 0.03, 1, 0.95])
     
@@ -802,7 +810,6 @@ def sanity_check_plot(solution, save_path = None):
         plt.show()
 
     print(f"Final stress stat at s = 0:\nR1: {one_solution_final.R1.iloc[0]:.4e}\nR2: {one_solution_final.R2.iloc[0]:.4e}\nR3: {one_solution_final.R3.iloc[0]:.4e}")
-
     print(f"Final stress stat at s = 1:\nR1: {one_solution_final.R1.iloc[-1]:.4e}\nR2: {one_solution_final.R2.iloc[-1]:.4e}\nR3: {one_solution_final.R3.iloc[-1]:.4e}")
 
 
