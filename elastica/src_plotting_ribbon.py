@@ -327,9 +327,9 @@ def plot_multiple_solutions_sleeve(
     start_color_idx=0, 
     print_legend=False,
     variables=[
-        ('displacement_X', 'Displacement on X'),
-        ('displacement_Y', 'Displacement on Y'),
-        ('displacement_Z', 'Displacement on Z'),
+        ('displacement_X', 'Displacement on X [mm]'),
+        ('displacement_Y', 'Displacement on Y [mm]'),
+        ('displacement_Z', 'Displacement on Z [mm]'),
         ('response_force_X', 'Pressure on X [N/mm^2]'),
         ('response_force_Y', 'Pressure on Y [N/mm^2]'),
         ('response_force_Z', 'Pressure on Z [N/mm^2]'),
@@ -398,7 +398,6 @@ def plot_multiple_solutions_sleeve(
                     color=color, linestyle='-', label=label if k == 0 else ""
                 )
 
-        axs[row, col].set_ylabel(title, fontsize=12)
         axs[row, col].set_xlabel('s', fontsize=12)
         axs[row, col].set_title(title, fontsize=14)
         axs[row, col].tick_params(axis='both', labelsize=10)

@@ -87,7 +87,7 @@ def create_env(initial_position,d1_initial, position_sleeve, d1_sleeve,
         GeneralConstraint,
         constrained_position_idx=(0,),
         constrained_director_idx=(0,),
-        translational_constraint_selector= np.abs(d3[:,0]) != np.max(np.abs(d3[:,0])),  # to block only the 2 direction that not the direction of d3 at the base
+        translational_constraint_selector= np.abs(d3[:,0]) != np.max(np.abs(d3[:,0])),  # to block only the 2 direction that are not the direction of d3 at the base
         rotational_constraint_selector=np.array([True, True, True])  # Fix all rotations
     )
     
