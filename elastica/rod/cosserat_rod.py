@@ -1,4 +1,4 @@
-__doc__ = """ Cosserat rod equations implementation for Elastica Numba Implementation"""
+__doc__ = """ Cosserat rod equations implementation for Elactica Numba Implementation"""
 __all__ = ["CosseratRod"]
 import numpy as np
 import functools
@@ -146,6 +146,7 @@ class CosseratRod(RodBase):
         # n_elems_with_boundary is a member of ring rod.
         if kwargs.__contains__("ring_rod_flag"):
             self.ring_rod_flag = kwargs.get("ring_rod_flag")
+        else: self.ring_rod_flag = False
 
     @classmethod
     def straight_rod(

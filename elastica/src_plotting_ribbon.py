@@ -18,40 +18,34 @@ from scipy.interpolate import interp1d
 
 
 
-
-
 def plot_3D_ribbons_from_process_solution(solution_df, solution_indices=None, n_points=20, half_width=0.1, n_arrows = 10, save_path=None):
     """
-    Plots 3D ribbon structures from a given partitioned solution file using Plotly.
+    Plot 3D ribbon structures from partitioned solution data using Plotly.
 
-    Parameters:
-    -----------
+    Creates interactive 3D visualizations of ribbon-like structures by constructing surfaces
+    from centerline coordinates and direction vectors. Includes Cosserat frame arrows and
+    color-coded surfaces based on arc-length parameter.
+
+    Parameters
+    ----------
     solution_df : pd.DataFrame
-        A DataFrame containing the solution data with columns ['Index_solution', 'X', 'Y', 'Z', 
-        'd3x', 'd3y', 'd3z', 'd2x', 'd2y', 'd2z', 's'].
+        Solution data with columns: 'Index_solution', 'X', 'Y', 'Z', 'd3x', 'd3y', 'd3z', 
+        'd2x', 'd2y', 'd2z', 's'.
     solution_indices : list of int, optional
-        A list of solution indices to be visualized. If None, defaults to [1, 2].
-    n_points : int, optional (default=20)
-        Number of points across the ribbon width for surface plotting.
-    n_arrows : int, optional (default=10)
-        Number of arrows representing the cosserat fram allong the centerline to display
-    half_width : float, optional (default=0.1)
-        Half-width of the ribbon for visualization.
-    save_path : str, optional (default="figure/3D_ribbons.png")
-        File path to save the output image.
+        Solution indices to visualize. Defaults to [1, 2] if None.
+    n_points : int, default 20
+        Number of points across ribbon width for surface construction.
+    half_width : float, default 0.1
+        Half-width of ribbon for visualization.
+    n_arrows : int, default 10
+        Number of Cosserat frame arrows along centerline.
+    save_path : str, optional
+        File path to save plot image.
 
-    Returns:
-    --------
-    fig : plotly.graph_objects.Figure
-        A Plotly figure object displaying the 3D ribbon structures.
-
-    Notes:
-    ------
-    - The function extracts centerline coordinates and constructs a ribbon surface using normal vectors.
-    - Direction vectors (d1, d2, d3) are used to define the ribbon width and orientations.
-    - Colored ribbons are plotted based on the 's' value in the DataFrame.
-    - Arrows representing d1, d2, and d3 are plotted at intervals.
-    - The figure is saved as an image and displayed.
+    Returns
+    -------
+    plotly.graph_objects.Figure
+        Interactive 3D ribbon plot.
     """
     if solution_indices is None:
         print("Don't forget to add the list of index you want to plot.")
@@ -111,11 +105,6 @@ def plot_3D_ribbons_from_process_solution(solution_df, solution_indices=None, n_
 
         X_surf, Y_surf, Z_surf, colors = map(np.array, (X_surf, Y_surf, Z_surf, colors))
 
-        #print(f"Indice of the solution: {one_solution['Index_solution'].max()}")
-        #print(f"X_max: {np.max(np.abs(one_solution.X)):.3f}")
-        #print(f"Y_max: {np.max(np.abs(one_solution.Y)):.3f}")
-        #print(f"Z_max: {np.max(np.abs(one_solution.Z)):.3f}\n")
-
         fig.add_trace(go.Surface(x=X_surf, y=Y_surf, z=Z_surf, surfacecolor=colors,
                                  colorscale='Plasma', showscale=False, opacity=opacity, name=f'Ribbon {index}'))
 
@@ -132,19 +121,34 @@ def plot_3D_ribbons_from_process_solution(solution_df, solution_indices=None, n_
         )
     )
     
-
     if save_path is not None:
         fig.write_image(save_path, width=800, height=600)
         print(f"Plot saved to: {save_path}")
     
-
     fig.show()
-        
     return fig
 
 
 def process_solution_file_auto(path_s):
+    """
+    Automatically parse and process solution files from numerical simulations.
 
+    Reads structured solution files containing meta-information and numerical data,
+    extracts individual solutions, and organizes them into a structured DataFrame
+    with proper column naming and solution indexing.
+
+    Parameters
+    ----------
+    path_s : str
+        Path to the solution file to be processed.
+
+    Returns
+    -------
+    pd.DataFrame
+        Processed solution data with columns: 'Cont_par', 'X', 'Y', 'Z', 'd3x', 'd3y', 'd3z',
+        'd2x', 'd2y', 'd2z', 'd1x', 'd1y', 'd1z', 'R1', 'R2', 'R3', 'm1', 'm2', 'm3',
+        'k2', 'k3', 's', 'Index_solution'.
+    """
     # Read the header to extract meta-information
     fl = pd.read_table(path_s, nrows=0, sep='\s+')
     lst = list(fl)
@@ -153,7 +157,6 @@ def process_solution_file_auto(path_s):
     
     ntpl = con[6]  # Points in the time interval [0,1]
     nrowpr = con[8]  # Number of lines printed following the identifying line
-
 
     # Read the .s file, skipping bad lines
     sol_raw = pd.read_csv(path_s, sep='\s+', header=None, on_bad_lines='skip', skipinitialspace=True)
@@ -213,7 +216,6 @@ def process_solution_file_auto(path_s):
     return solution_df.astype('float64')
 
 
-
 def plot_multiple_solutions(
     solution_dfs, 
     labels, 
@@ -235,50 +237,36 @@ def plot_multiple_solutions(
     save_path=None
 ):
     """
-    Plot multiple ribbon simulation solutions as subplots.
+    Plot multiple ribbon simulation solutions as variable subplots vs arc-length.
 
-    This function generates subplots for each specified variable (`X`, `Y`, `Z`, `R1`, etc.)
-    for one or more solution datasets. Each variable is plotted as a function of arc-length `s`
-    for a set of selected simulation frames (`Index_solution` values). The plots can also include
-    a reference "true" solution for visual comparison.
+    Creates a grid of subplots showing specified variables as functions of arc-length
+    for multiple solution datasets and selected time frames. Optionally includes
+    reference solution for comparison.
 
     Parameters
     ----------
-    solution_dfs : list of pandas.DataFrame
-        A list of DataFrames, each representing a full simulation solution. Each DataFrame should
-        contain columns such as: 'Index_solution', 's', 'X', 'Y', 'Z', 'R1', 'R2', 'R3', 'V1', 'V2', 'V3'.
-
+    solution_dfs : list of pd.DataFrame
+        List of solution DataFrames with columns: 'Index_solution', 's', and variable columns.
     labels : list of str
-        Labels for each solution in `solution_dfs`, used in the plot legend.
-
-    indices : list or array-like of int
-        Frame indices (`Index_solution`) to plot from each solution DataFrame.
-
-    start_color_idx : int, optional (default=0)
-        Index to shift the base colormap for the solutions. Useful for differentiating plot sets
-        when calling this function multiple times.
-
-    true_solution : pandas.DataFrame, optional
-        A reference solution DataFrame with the same variables. If provided, it is plotted as a
-        dashed red line for comparison.
-
-    print_legend : bool, optional (default=False)
-        Whether to include a legend in the plot. Only shown in the top-right subplot.
-
-    variables : list of tuple, optional
-        A list of (column_name, display_name) pairs representing the variables to plot and their
-        corresponding y-axis labels.
-
-    save_path : str or None, optional
-        If provided, saves the resulting plot to the specified file path. The file format is
-        inferred from the extension (e.g., .png, .pdf). If None, the plot is displayed instead.
+        Labels for each solution dataset for legend.
+    indices : list of int
+        Frame indices (Index_solution values) to plot from each dataset.
+    start_color_idx : int, default 0
+        Starting index for colormap selection to differentiate plot sets.
+    true_solution : pd.DataFrame, optional
+        Reference solution DataFrame plotted as dashed red line.
+    print_legend : bool, default False
+        Whether to display legend in top-right subplot.
+    variables : list of tuple, default provided
+        List of (column_name, display_name) pairs for variables to plot.
+    save_path : str, optional
+        File path to save plot. If None, displays interactively.
 
     Returns
     -------
     None
-        Displays the plot or saves it to a file.
+        Displays plot or saves to file.
     """
-
     num_solutions = len(solution_dfs)
 
     num_vars = len(variables)
@@ -332,7 +320,6 @@ def plot_multiple_solutions(
         plt.show()
 
 
-
 def plot_multiple_solutions_sleeve(
     solution_dfs, 
     labels, 
@@ -355,8 +342,34 @@ def plot_multiple_solutions_sleeve(
     ],
     save_path=None
 ):
+    """
+    Plot multiple sleeve simulation solutions as variable subplots vs arc-length.
 
+    Creates subplots for sleeve-specific variables (displacements, forces, rotations, couples)
+    as functions of arc-length for multiple solution datasets and selected time frames.
 
+    Parameters
+    ----------
+    solution_dfs : list of pd.DataFrame
+        List of sleeve solution DataFrames with displacement, force, and rotation columns.
+    labels : list of str
+        Labels for each solution dataset for legend.
+    indices : list of int
+        Frame indices (Index_solution values) to plot from each dataset.
+    start_color_idx : int, default 0
+        Starting index for colormap selection.
+    print_legend : bool, default False
+        Whether to display legend in top-right subplot.
+    variables : list of tuple, default provided
+        List of (column_name, display_name) pairs for sleeve variables to plot.
+    save_path : str, optional
+        File path to save plot. If None, displays interactively.
+
+    Returns
+    -------
+    None
+        Displays plot or saves to file.
+    """
     num_solutions = len(solution_dfs)
 
     num_vars = len(variables)
@@ -408,45 +421,39 @@ def plot_multiple_solutions_sleeve(
 def plot_3D_ribbons_from_process_solutions(solution_df1, solution_indices1, solution_df2, solution_indices2,  color_df1 = 'viridis', color_df2 = 'Plasma',
                                            n_points=20, half_width=0.1, n_arrows=10, save_path="figure/3D_ribbons.png"):
     """
-    Plots 3D ribbon structures from two different partitioned solution files using Plotly.
+    Plot and compare 3D ribbon structures from two different solution datasets.
 
-    Parameters:
-    -----------
+    Creates interactive 3D visualizations comparing ribbon structures from two datasets
+    using different colormaps. Each dataset can have multiple solution indices with
+    varying opacity based on solution index.
+
+    Parameters
+    ----------
     solution_df1 : pd.DataFrame
-        First DataFrame containing the solution data with columns ['Index_solution', 'X', 'Y', 'Z', 
-        'd3x', 'd3y', 'd3z', 'd2x', 'd2y', 'd2z', 's'].
-    
+        First solution dataset with ribbon structure data.
     solution_indices1 : list of int
-        List of solution indices to be visualized from solution_df1.
-
+        Solution indices to visualize from first dataset.
     solution_df2 : pd.DataFrame
-        Second DataFrame containing another set of solution data.
-
+        Second solution dataset with ribbon structure data.
     solution_indices2 : list of int
-        List of solution indices to be visualized from solution_df2.
+        Solution indices to visualize from second dataset.
+    color_df1 : str, default 'viridis'
+        Colormap name for first dataset.
+    color_df2 : str, default 'Plasma'
+        Colormap name for second dataset.
+    n_points : int, default 20
+        Number of points across ribbon width for surface construction.
+    half_width : float, default 0.1
+        Half-width of ribbon for visualization.
+    n_arrows : int, default 10
+        Number of Cosserat frame arrows along centerline.
+    save_path : str, default "figure/3D_ribbons.png"
+        File path to save output image.
 
-    n_points : int, optional (default=20)
-        Number of points across the ribbon width for surface plotting.
-
-    n_arrows : int, optional (default=10)
-        Number of arrows representing the Cosserat frame along the centerline to display.
-
-    half_width : float, optional (default=0.1)
-        Half-width of the ribbon for visualization.
-
-    save_path : str, optional (default="figure/3D_ribbons.png")
-        File path to save the output image.
-
-    Returns:
-    --------
-    fig : plotly.graph_objects.Figure
-        A Plotly figure object displaying the 3D ribbon structures.
-
-    Notes:
-    ------
-    - Two datasets are plotted with separate colors.
-    - Opacity varies within each group.
-    - Cosserat frame arrows are included.
+    Returns
+    -------
+    plotly.graph_objects.Figure
+        Interactive 3D ribbon comparison plot.
     """
     fig = go.Figure()
 
@@ -507,11 +514,6 @@ def plot_3D_ribbons_from_process_solutions(solution_df1, solution_indices1, solu
 
             X_surf, Y_surf, Z_surf, colors = map(np.array, (X_surf, Y_surf, Z_surf, colors))
 
-            #print(f"Solution {index} from dataset ({colormap}):")
-            #print(f"  X_max: {np.max(np.abs(one_solution.X)):.3f}")
-            #print(f"  Y_max: {np.max(np.abs(one_solution.Y)):.3f}")
-            #print(f"  Z_max: {np.max(np.abs(one_solution.Z)):.3f}\n")
-
             fig.add_trace(go.Surface(
                 x=X_surf, y=Y_surf, z=Z_surf, surfacecolor=colors,
                 colorscale=colormap, showscale=False,
@@ -519,7 +521,6 @@ def plot_3D_ribbons_from_process_solutions(solution_df1, solution_indices1, solu
             ))
 
     fig.update_layout(
-        #title="3D Ribbon Comparison from Two Datasets",
         scene=dict(
             xaxis_title='X',
             yaxis_title='Y',
@@ -532,27 +533,33 @@ def plot_3D_ribbons_from_process_solutions(solution_df1, solution_indices1, solu
         )
     )
     
-    #fig.write_image(save_path)
     fig.show()
     return fig
 
+
 def process_solution_elastica(pp_list_read, base_length):
     """
-    Processes solution data and converts it into a structured DataFrame.
+    Process elastica simulation data into structured DataFrame format.
 
-    Parameters:
-    -----------
+    Converts raw elastica simulation output containing time series of positions,
+    directors, stresses, and other mechanical quantities into a structured DataFrame
+    suitable for analysis and visualization.
+
+    Parameters
+    ----------
     pp_list_read : dict
-        DictionaR2 containing solution data with keys: 'time', 'step', 'position', 
-        'directors', 'internal_stress', 'internal_couple', and 'curvature'.
-        
+        Dictionary containing simulation data with keys: 'time', 'step', 'position',
+        'directors', 'internal_stress', 'internal_couple', 'internal_forces',
+        'external_forces', 'curvature', 'sigma', 'dilatation', 'tangents', 'velocity'.
     base_length : float
-        Reference length to normalize positional values.
+        Reference length for normalizing positional coordinates.
 
-    Returns:
-    --------
-    pandas.DataFrame
-        Processed DataFrame containing the solution data.
+    Returns
+    -------
+    pd.DataFrame
+        Processed DataFrame with columns for positions, directors, forces, couples,
+        curvatures, strains, and other mechanical quantities indexed by solution
+        and arc-length parameter.
     """
     rows = []
     j = 0
@@ -654,21 +661,27 @@ def process_solution_elastica(pp_list_read, base_length):
 
 def process_solution_elastica_sleeve(pp_list_read):
     """
-    Processes solution data and converts it into a structured DataFrame.
+    Process elastica simulation data of the sleeve object into structured DataFrame format.
 
-    Parameters:
-    -----------
+    Converts raw elastica simulation output containing time series of positions,
+    directors, stresses, and other mechanical quantities into a structured DataFrame
+    suitable for analysis and visualization.
+
+    Parameters
+    ----------
     pp_list_read : dict
-        Dictionary containing solution data with keys: 'response_force_sleeve', 'displacement_sleeve', 'response_couple_sleeve', 
-        'rotation_sleeve'
-    
-    step_skip : int
-        Step increment to normalize the solution index.
+        Dictionary containing simulation data with keys: 'time', 'step', 'position',
+        'directors', 'internal_stress', 'internal_couple', 'internal_forces',
+        'external_forces', 'curvature', 'sigma', 'dilatation', 'tangents', 'velocity'.
+    base_length : float
+        Reference length for normalizing positional coordinates.
 
-    Returns:
-    --------
-    pandas.DataFrame
-        Processed DataFrame containing the solution data.
+    Returns
+    -------
+    pd.DataFrame
+        Processed DataFrame with columns for positions, directors, forces, couples,
+        curvatures, strains, and other mechanical quantities indexed by solution
+        and arc-length parameter.
     """
     rows = []
     j = 0
@@ -707,7 +720,14 @@ def process_solution_elastica_sleeve(pp_list_read):
 
 
 
+
 def sanity_check_plot(solution, save_path = None):
+    """Generate diagnostic plots for simulation convergence and assumption checks.
+    
+    Args:
+        solution: DataFrame containing simulation solution data
+        save_path: Optional path to save plot, displays if None
+    """
 
     # Extra fields
     solution["dilatation_error"] = solution["dilatation"] - 1
@@ -740,7 +760,7 @@ def sanity_check_plot(solution, save_path = None):
 
     # Subplot 1: Steady state
     axes[0, 0].plot(solution_max.index, (solution_l2['norm_V']))
-    axes[0, 0].set_title("Steady State", **fontdict)
+    axes[0, 0].set_title("Steady State Check", **fontdict)
     axes[0, 0].set_xlabel("Time", fontsize=12)
     axes[0, 0].set_ylabel("l2(|V|)", fontsize=12)
     axes[0, 0].set_yscale('log')
@@ -748,7 +768,7 @@ def sanity_check_plot(solution, save_path = None):
 
     # Subplot 1: Steady state
     axes[0, 1].plot(solution_max.index, solution_l2['norm_pos'].values)
-    axes[0, 1].set_title("Steady State", **fontdict)
+    axes[0, 1].set_title("Steady State Check", **fontdict)
     axes[0, 1].set_xlabel("Time", fontsize=12)
     axes[0, 1].set_ylabel("l2(|R|)", fontsize=12)
     axes[0, 1].grid(True)
@@ -766,23 +786,23 @@ def sanity_check_plot(solution, save_path = None):
     e2 = solution_l2.e2
     e3 = solution_l2.e3
     (np.sqrt(e1**2 + e2**2 + e3**2) / np.sqrt(solution_l2.X**2 + solution_l2.Y**2 + solution_l2.Z**2)).plot(ax=axes[1, 1], logy=True)
-    axes[1, 1].set_title("|Shear Strain| over |r| (L2)", **fontdict)
+    axes[1, 1].set_title("|Shear Strain| (L2)", **fontdict)
     axes[1, 1].set_xlabel("Time", fontsize=12)
     axes[1, 1].set_ylabel("Error", fontsize=12)
     axes[1, 1].grid(True, which="both")
 
     # Subplot 5: Dilatation L2
     solution_l2.dilatation_error.iloc[2:].plot(ax=axes[2, 0], logy=True)
-    axes[2, 0].set_title("Dilatation (L2)", **fontdict)
+    axes[2, 0].set_title("Dilatation (L2) -1", **fontdict)
     axes[2, 0].set_xlabel("Time", fontsize=12)
     axes[2, 0].set_ylabel("L2 Norm", fontsize=12)
     axes[2, 0].grid(True, which="both")
 
     # Subplot 6: sin(theta) tx.d3
-    solution_l2.sin_theta_txd3.plot(ax=axes[2, 1], logy=True)
-    axes[2, 1].set_title("sin(theta) tx.d3", **fontdict)
-    axes[2, 1].set_xlabel("Time", fontsize=12)
-    axes[2, 1].set_ylabel("Value", fontsize=12)
+    solution_max.sin_theta_txd3.plot(ax=axes[2, 1], logy=True)
+    axes[2, 1].set_title("Angle between t and d3", **fontdict)
+    axes[2, 1].set_xlabel("s", fontsize=12)
+    axes[2, 1].set_ylabel("theta [-]", fontsize=12)
     axes[2, 1].grid(True, which="both")
 
     # Subplot 7: Curve Length -1
@@ -814,6 +834,12 @@ def sanity_check_plot(solution, save_path = None):
 
 
 def control_law_plot(solution, save_path = None):
+    """Plot boundary conditions stress stat to validate control law implementation and convergence.
+    
+    Args:
+        solution: DataFrame containing simulation solution data
+        save_path: Optional path to save plot, displays if None
+    """
     solution_at_base = solution[solution.s == 0]
     solution_at_tip = solution[solution.s == 1]
 
@@ -886,32 +912,18 @@ def control_law_plot(solution, save_path = None):
     
 
 def build_incremental_discretized_paths(path_df, direction, normal, n_points, M, min_length):
-    """
-    Build discretized paths with twist support.
+    """Build discretized 3D paths with incremental lengths and twist support from an instruction .csv file obtain by the path planning algorithm
     
-    Parameters:
-    -----------
-    path_df : DataFrame
-        DataFrame with columns 'type', 'length (mm)', 'curvature (1/mm)', and optionally 'twist (rad/mm)'
-    direction : ndarray
-        Initial direction vector
-    normal : ndarray
-        Initial normal vector
-    n_points : int
-        Number of points in the final path
-    M : int
-        Number of paths to generate with different lengths
-    min_length : float
-        Minimum path length
+    Args:
+        path_df: DataFrame with 'type', 'length (mm)', 'curvature (1/mm)', 'twist (rad/mm)' columns
+        direction: Initial direction vector (3D)
+        normal: Initial normal vector (3D)
+        n_points: Number of points in each discretized path
+        M: Number of paths with different lengths to generate
+        min_length: Minimum path length
         
     Returns:
-    --------
-    all_paths : list of arrays
-        List of path arrays, each with shape (3, n_points)
-    lengths : ndarray
-        Array of path lengths
-    all_normals : list of arrays
-        List of normal vectors along each path segment, each with shape (3, n_points-1)
+        tuple: (all_paths, lengths, all_normals) where paths are list of (3, n_points) arrays
     """
     direction = direction / np.linalg.norm(direction)
     normal = normal - direction * np.dot(direction, normal)
@@ -1069,7 +1081,14 @@ def build_incremental_discretized_paths(path_df, direction, normal, n_points, M,
     return all_paths, lengths, all_normals
 
 def skew(v):
-    """Skew-symmetric matrix for cross product"""
+    """Create skew-symmetric matrix for cross product operation.
+    
+    Args:
+        v: 3D vector
+        
+    Returns:
+        3x3 skew-symmetric matrix
+    """
     return np.array([
         [0, -v[2], v[1]],
         [v[2], 0, -v[0]],
@@ -1077,8 +1096,14 @@ def skew(v):
     ])
 
 def skew_rotation(axis, angle):
-    """
-    Create rotation matrix from axis and angle using Rodrigues' formula
+    """Create rotation matrix using Rodrigues' formula.
+    
+    Args:
+        axis: Rotation axis (3D vector)
+        angle: Rotation angle in radians
+        
+    Returns:
+        3x3 rotation matrix
     """
     axis = axis / np.linalg.norm(axis)
     return (
@@ -1088,6 +1113,14 @@ def skew_rotation(axis, angle):
     )
     
 def plot_trajectory(path_points, show=True, color='b', label='Trajectory'):
+    """Plot 3D trajectory with start/end markers.
+    
+    Args:
+        path_points: Array of 3D points
+        show: Whether to display plot
+        color: Line color
+        label: Plot label
+    """
     fig = plt.figure(figsize=(8, 6))
     ax = fig.add_subplot(111, projection='3d')
     
@@ -1117,13 +1150,38 @@ def plot_trajectory(path_points, show=True, color='b', label='Trajectory'):
 
 
 def color_function(f1, m3, n_points_width, a):
+    """Calculate stress values across ribbon width for color mapping.
+    
+    Args:
+        f1: Normal force
+        m3: Torsional moment
+        n_points_width: Number of points across width
+        a: Ribbon width parameter
+        
+    Returns:
+        Array of stress values in kPa
+    """
 
+    #reconstruct stress distribution so that we have a resulting for of f1 and a resulting twisting couple of m3
     stress = np.linspace(a/2,-a/2,n_points_width)*12*m3/a**2+f1
     stress /=1e3
     return stress
 
 
 def plot_ribbon_with_views(X_surf, Y_surf, Z_surf, path, colors, stress_cmap, min_value, max_value, axes=None):
+    """Plot 3D ribbon surface with stress coloring in multiple views.
+    
+    Args:
+        X_surf, Y_surf, Z_surf: Surface coordinate arrays
+        path: Centerline path coordinates
+        colors: Stress values for coloring
+        stress_cmap: Colormap for stress visualization
+        min_value, max_value: Stress range for color normalization
+        axes: Optional matplotlib axes (creates new if None)
+        
+    Returns:
+        List of matplotlib 3D axes
+    """
     def plot_single_view(ax, elev, azim, title, show_colorbar=False):
         ax.clear()  # Clear previous contents
         
@@ -1193,7 +1251,29 @@ def plot_ribbon_with_views(X_surf, Y_surf, Z_surf, path, colors, stress_cmap, mi
 
 
 def Plot_stress_field(solutions, solutions_sleeve, path, L, a, n_points=20, axes=None, min_value=None, max_value=None):
-
+    """
+    Visualize stress field on a 3D ribbon structure with color-coded stress distribution.
+    
+    Args:
+        solutions: DataFrame with structural solution data containing position (X,Y,Z) and direction vectors (d2x,d2y,d2z,d3x,d3y,d3z)
+        solutions_sleeve: DataFrame with sleeve response data containing force and moment components
+        path: 3D path coordinates for the ribbon centerline
+        L: Length scaling factor for coordinates
+        a: Ribbon width parameter (total width)
+        n_points: Number of points across ribbon width for surface mesh (default: 20)
+        axes: Optional matplotlib 3D axes for plotting; if None, creates new axes
+        min_value: Minimum stress value for color scaling (default: None for auto-scaling)
+        max_value: Maximum stress value for color scaling (default: None for auto-scaling)
+        
+    Returns:
+        axes: Updated matplotlib axes object if axes parameter provided
+        
+    Notes:
+        - Uses the solution with maximum Index_solution value
+        - Creates a ribbon surface by distributing points across width using d2 direction
+        - Calculates stress from normal force (f_n) and torsional moment (m3)
+        - Colors surface using blue-white-red colormap based on stress values
+    """
 
     # Define colors for the stress colormap
     stress_colors = [
@@ -1282,6 +1362,19 @@ def Plot_stress_field(solutions, solutions_sleeve, path, L, a, n_points=20, axes
 
 
 def compute_global_stress_range(all_solutions, all_sleeves, a, lengths, n_points):
+    """
+    Compute the global stress range across all solutions for consistent color scaling.
+    
+    Args:
+        all_solutions: List of solution DataFrames containing directional vectors (d3x, d3y, d3z, d2x, d2y, d2z)
+        all_sleeves: List of sleeve DataFrames containing response forces and couples
+        a: Parameter for stress calculation (likely cross-sectional dimension)
+        lengths: List of lengths corresponding to each solution
+        n_points: Number of points for stress field calculation
+        
+    Returns:
+        tuple: (min_val, max_val) - Global minimum and maximum stress values
+    """
     all_colors = []
 
     for solutions, sleeve, L in zip(all_solutions, all_sleeves, lengths):
@@ -1323,7 +1416,24 @@ def compute_global_stress_range(all_solutions, all_sleeves, a, lengths, n_points
 
 
 def animate_stress_field_3views(all_solutions, all_sleeves, lengths, a, max_frame, 
-                                all_path = None, n_points=20, interval=200, save_path = "stress_field_animation.gif"):
+                                all_path=None, n_points=20, interval=200, save_path="stress_field_animation.gif"):
+    """
+    Create an animated 3-view stress field visualization and save as GIF.
+    
+    Args:
+        all_solutions: List of solution DataFrames for each frame
+        all_sleeves: List of sleeve DataFrames for each frame
+        lengths: List of lengths corresponding to each solution
+        a: Parameter for stress calculation (likely cross-sectional dimension)
+        max_frame: Maximum frame number for animation
+        all_path: Optional list of path DataFrames for each frame
+        n_points: Number of points for stress field calculation (default: 20)
+        interval: Time interval between frames in milliseconds (default: 200)
+        save_path: Output file path for the GIF (default: "stress_field_animation.gif")
+        
+    Returns:
+        None: Saves animation as GIF and displays the plot
+    """
     min_val, max_val = compute_global_stress_range(all_solutions, all_sleeves, a, lengths, n_points)
 
     fig = plt.figure(figsize=(18, 6))
@@ -1353,11 +1463,20 @@ def animate_stress_field_3views(all_solutions, all_sleeves, lengths, a, max_fram
     plt.show()
 
 
-
-
 def compute_error_vector(curve1_df: pd.DataFrame,
                          curve2_df: pd.DataFrame):
-
+    """
+    Compute error vectors between two parametric curves by interpolating curve2 at curve1's parameter values.
+    
+    Args:
+        curve1_df: DataFrame with columns ['s', 'X', 'Y', 'Z'] representing the reference curve
+        curve2_df: DataFrame with columns ['s', 'X', 'Y', 'Z'] representing the comparison curve
+        
+    Returns:
+        tuple: (error_vectors, s_values) where:
+            - error_vectors: numpy array of shape (n, 3) containing XYZ error vectors
+            - s_values: numpy array of parameter values from curve1
+    """
     # Get s values from curve1 that will be used for interpolation
     s_values = curve1_df['s'].values
     

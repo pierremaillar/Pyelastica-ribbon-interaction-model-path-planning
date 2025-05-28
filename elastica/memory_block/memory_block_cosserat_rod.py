@@ -233,7 +233,6 @@ class MemoryBlockCosseratRod(
             "position_collection": 0,
             "internal_forces": 1,
             "external_forces": 2,
-            "damping_forces": 3,
         }
         self.vector_dofs_in_rod_nodes = np.zeros(
             (len(map_vector_dofs_in_rod_nodes), 3 * self.n_nodes)
@@ -330,8 +329,7 @@ class MemoryBlockCosseratRod(
             "rest_sigma": 2,
             "internal_torques": 3,
             "external_torques": 4,
-            "damping_torques": 5,
-            "internal_stress": 6,
+            "internal_stress": 5,
         }
         self.vector_dofs_in_rod_elems = np.zeros(
             (len(map_vector_dofs_in_rod_elems), 3 * self.n_elems)
