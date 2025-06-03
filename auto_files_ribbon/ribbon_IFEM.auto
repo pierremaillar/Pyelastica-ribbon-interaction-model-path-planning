@@ -1,0 +1,461 @@
+import numpy as np
+import pandas as pd
+from scipy.interpolate import CubicSpline
+import time
+import os
+import contextlib
+
+
+
+def process_solution_file(path_s):
+
+    # Read the header to extract meta-information
+    fl = pd.read_table(path_s, nrows=0, sep='\s+')
+    lst = list(fl)
+    con = [float(x) for x in lst]
+    con = [int(x) for x in con]
+    
+    ntpl = con[6]  # Points in the time interval [0,1]
+    nrowpr = con[8]  # Number of lines printed following the identifying line
+
+
+    # Read the .s file, skipping bad lines
+    sol_raw = pd.read_csv(path_s, sep='\s+', header=None, on_bad_lines='skip', skipinitialspace=True)
+
+    # Search the index of the first line of solutions
+    index_no_nan = sol_raw.dropna().index + 1  
+    index_no_nan = index_no_nan[sol_raw.iloc[index_no_nan - 1, :].sum(axis=1) > 50]
+
+    # Identify the rows with exactly 1 non-NaN value, likely separator rows
+    index_one_non_nan = sol_raw[sol_raw.notna().sum(axis=1) <= 2].index
+
+    # Find sequences of consecutive rows with single non-NaN values
+    consecutive_indices = [index_one_non_nan[i] for i in range(len(index_one_non_nan) - 2)
+                           if index_one_non_nan[i] == index_one_non_nan[i + 1] - 1
+                           and index_one_non_nan[i] == index_one_non_nan[i + 2] - 2]
+
+    consecutive_indices = np.array(consecutive_indices)
+    index_no_nan = consecutive_indices - 4*ntpl + 1
+    extracted_solutions = []
+
+    # Extract solutions between corresponding pairs of index_no_nan and consecutive_indices
+    for i, j in zip(index_no_nan, consecutive_indices):
+        extracted_solutions.append(sol_raw.iloc[i:j + 1])
+
+    # Concatenate extracted solutions
+    extracted_solutions_df = pd.concat(extracted_solutions)
+
+    # Clean and limit columns in the extracted solutions
+    extracted_solutions_cleaned_df = extracted_solutions_df.iloc[:, :7]
+
+    # Flatten and remove NaN values
+    flattened = extracted_solutions_cleaned_df.values.flatten()
+    non_nan_values = flattened[~np.isnan(flattened)]
+
+    # Define the number of columns (22)
+    num_columns = 22
+
+    # Reshape into a DataFrame
+    solution_df = pd.DataFrame(non_nan_values.reshape(-1, num_columns))
+
+    # Set column names
+    solution_df.columns = ['F', 'X', 'Y', 'Z', 'd3x', 'd3y', 'd3z', 'd2x', 'd2y', 'd2z', 'd1x', 'd1y', 'd1z',
+                           'R1', 'R2', 'R3', 'm1', 'm2', 'm3', 'k2', 'k3', 's']
+
+    # Calculate the number of points per solution
+    n = (consecutive_indices[0] - index_no_nan[0] + 1) // 4
+
+    # Determine number of rows
+    num_rows = solution_df.shape[0]
+
+    # Create an 'Index_solution' column to label each solution
+    index_column = np.repeat(np.arange(1, (num_rows // n) + 2), n)[:num_rows]
+    solution_df['Index_solution'] = index_column
+    return solution_df[solution_df['Index_solution']== max(index_column)].astype('float64')
+
+
+
+
+def compute_objective_func(true_solution, path_sim_solution, store_solution = 0, mode = 0):
+    # Process the simulated solution data
+    sim_solution_all = process_solution_file(path_sim_solution)
+    sim_solution = sim_solution_all[sim_solution_all['Index_solution']==max(sim_solution_all.Index_solution)]
+    solution = pd.DataFrame([])
+    
+    if store_solution:
+         solution = sim_solution
+    # Extract coordinates from true and simulated solutions
+    xt, yt, zt, k3t, k2t = true_solution.X, true_solution.Y, true_solution.Z, true_solution.k3, true_solution.k2
+    xs, ys, zs, k3s, k2s = sim_solution.X, sim_solution.Y, sim_solution.Z, sim_solution.k3, sim_solution.k2
+
+    alphat = np.arctan(true_solution.d1z/true_solution.d1y)
+    alphas = np.arctan(sim_solution.d1z/sim_solution.d1y)
+
+
+   
+    # Define interpolation range and interpolate the data
+    t = np.linspace(0, 1, 1000)
+    tt = np.linspace(0, 1, len(xt))
+    ts = np.linspace(0, 1, len(xs))
+
+    # Apply cubic spline interpolation
+    xt_interp = CubicSpline(tt, xt, extrapolate=True)
+    yt_interp = CubicSpline(tt, yt, extrapolate=True)
+    zt_interp = CubicSpline(tt, zt, extrapolate=True)
+    k3t_interp = CubicSpline(tt, k3t, extrapolate=True)
+    k2t_interp = CubicSpline(tt, k2t, extrapolate=True)
+    alphat_interp = CubicSpline(tt, alphat, extrapolate=True)
+
+    xs_interp = CubicSpline(ts, xs, extrapolate=True)
+    ys_interp = CubicSpline(ts, ys, extrapolate=True)
+    zs_interp = CubicSpline(ts, zs, extrapolate=True)
+    k3s_interp = CubicSpline(ts, k3s, extrapolate=True)
+    k2s_interp = CubicSpline(ts, k2s, extrapolate=True)
+    alphas_interp = CubicSpline(ts, alphas, extrapolate=True)
+
+    # Compute interpolated values on the common time grid
+    xt_common, yt_common, zt_common, k3t_common = xt_interp(t), yt_interp(t), zt_interp(t), k3t_interp(t)
+    k2t_common = k2t_interp(t)
+    alphat_common = alphat_interp(t)
+
+    xs_common, ys_common, zs_common, k3s_common = xs_interp(t), ys_interp(t), zs_interp(t), k3s_interp(t)
+    k2s_common = k2s_interp(t)
+    alphas_common = alphas_interp(t)
+
+    # Compute the differences and RMSE
+    error_k2 = (k2t_common - k2s_common)**2
+    error_k3 = (k3t_common - k3s_common)**2 
+    error_pos = (xt_common - xs_common)**2 + (yt_common - ys_common)**2 + (zt_common - zs_common)**2
+    error_alpha = (alphat_common - alphas_common)**2
+
+    if mode == 2:
+        rmse = np.sqrt(np.mean((t + 1) * error_pos))
+    elif mode == 1:
+        rmse = np.sqrt(np.mean(error_k2))
+    elif mode == 3:
+        rmse = np.sqrt(np.mean((t + 1) * error_alpha + 2*error_k3))
+    else:
+        rmse = np.sqrt(np.mean(4*(t+1) * error_pos + 2*error_k3 + (t + 1) * error_alpha))
+
+    return rmse, solution
+
+
+def explore_parameter_space(true_solution, param_min, param_max, num_points, output_file='parameter_space.csv'):
+    start_time = time.time()
+
+    param_ranges = [np.linspace(start, end, num_points) for start, end in zip(param_min, param_max)]
+    param_grid = np.meshgrid(*param_ranges)
+    param_points = np.array([p.flatten() for p in param_grid]).T
+    columns = [f'Param_{i+1}' for i in range(len(param_min))] + ['RMSE']
+    results_df = pd.DataFrame(columns=columns)
+
+    for i, param_set in enumerate(param_points, 1):
+        print(f"Computing RMSE for parameters: {param_set}. ({i}/{len(param_points)})")
+        
+        run_AUTO(param_set, eps=0)  # Update parameters for AUTO
+        rmse, _ = compute_objective_func(true_solution, 's.mu')  # Compute RMSE
+
+        new_row = pd.DataFrame([list(param_set) + [rmse]], columns=columns)
+        results_df = pd.concat([results_df, new_row], ignore_index=True)
+       
+    results_df.to_csv(output_file, index=False)
+    elapsed_time = time.time() - start_time
+    print(f"Results saved to {output_file}")
+    print(f"Total time: {elapsed_time:.4f} seconds")
+    
+    return results_df
+
+def replace_par_values(file_path, params):
+    with open(file_path, 'r') as file:
+        lines = file.readlines()
+    
+    new_definitions = [f"DOUBLE PRECISION :: w{i+1} = {param}\n" for i, param in enumerate(params)]
+    inside_target_section = False
+    modified_lines = []
+    
+    for line in lines:
+        if "!---!" in line:
+            inside_target_section = not inside_target_section
+        
+        if inside_target_section and any(f"DOUBLE PRECISION :: w{i+1} = " in line for i in range(len(params))):
+            for i, definition in enumerate(new_definitions):
+                if f"DOUBLE PRECISION :: w{i+1} = " in line:
+                    line = definition
+                    break
+        modified_lines.append(line)
+
+    with open(file_path, 'w') as file:
+        file.writelines(modified_lines)
+
+
+def run_AUTO(params, eps, verbosity=0):
+    replace_par_values('ribbon_IFEM.f90', params)
+
+    if verbosity == 0:
+        with open('terminal_debug.txt', 'w') as outfile:  
+            with contextlib.redirect_stdout(outfile), contextlib.redirect_stderr(outfile):
+                ribbon = load('ribbon_IFEM')
+                mu = run(ribbon, ISW=1)
+                save(mu, 'mu')
+                if eps != 0:
+                    for i in range(len(params)):
+                        eps_run = run(mu('UZ'), ICP=[i+2], UZSTOP={i+2: eps}, DS=eps/100, NMX=100, ISW=1)
+                        save(eps_run, f'eps{i+1}_front')
+
+                        eps_run = run(mu('UZ'), ICP=[i+2], UZSTOP={i+2: -eps}, DS=-eps/100, NMX=100, ISW=1)
+                        save(eps_run, f'eps{i+1}_back')
+    else:
+        ribbon = load('ribbon_IFEM')
+        mu = run(ribbon, ISW=1)
+        save(mu, 'mu')
+        if eps != 0:
+            for i in range(len(params)):
+                eps_run = run(mu('UZ'), ICP=[i+2], UZSTOP={i+2: eps}, DS=eps/100, NMX=100, ISW=1)
+                save(eps_run, f'eps{i+1}_front')
+
+                eps_run = run(mu('UZ'), ICP=[i+2], UZSTOP={i+2: -eps}, DS=-eps/100, NMX=100, ISW=1)
+                save(eps_run, f'eps{i+1}_back')
+
+def line_search_gradient_descent(true_solution, initial_params, initial_lr=0.1, tolerance=1e-4, max_iterations=100, beta=0.0, eps=0.1):
+    params = np.array(initial_params, dtype=float)
+    velocity = np.zeros_like(params)
+    columns = ['Iteration', 'RMSE', 'Gradient'] + [f'Param_{i+1}' for i in range(len(params))] + ['Step', 'Alpha']
+    history_df = pd.DataFrame(columns=columns)
+    start_time = time.time()
+    solutions = pd.DataFrame([])
+
+    for iteration in range(1, max_iterations + 1):
+        print(f"\nIteration {iteration}: Parameters = {params}")
+        run_AUTO(params, eps)
+        rmse, solution = compute_objective_func(true_solution, 's.mu', store_solution=1, mode = 4)
+        print(f"RMSE = {rmse}")
+
+        solution.Index_solution = iteration
+        solutions = pd.concat([solutions, solution], ignore_index=True)
+
+        # Compute gradient
+        grad = np.zeros_like(params)
+        for i in range(len(params)):
+            rmse_front, _ = compute_objective_func(true_solution, f's.eps{i+1}_front')
+            rmse_back, _ = compute_objective_func(true_solution, f's.eps{i+1}_back')
+            grad[i] = (rmse_front - rmse_back) / (2*eps)
+
+
+        # Update velocity
+        velocity = beta * velocity + (1 - beta) * grad
+
+        # Line search for step size
+        found_lr = False
+        for i in range(10):
+            candidate_lr = initial_lr * (0.5 ** i)
+            new_params = params - candidate_lr * velocity
+            run_AUTO(new_params, eps)
+            new_rmse, _ = compute_objective_func(true_solution, 's.mu', mode = 4)
+
+            # Armijo condition for step acceptance
+            if new_rmse <= rmse - candidate_lr * 0.5 * np.linalg.norm(velocity) ** 2:
+                lr = candidate_lr
+                found_lr = True
+                break
+
+        if not found_lr:
+            print("Line search failed.")
+            break
+
+        # Record data
+        step = -lr * velocity  # The effective step taken
+        row_data = [iteration, rmse, grad] + list(params) + [step, lr]
+        history_df = pd.concat([history_df, pd.DataFrame([row_data], columns=columns)], ignore_index=True)
+
+        # Update parameters
+        params = new_params
+        initial_lr = lr * 1.1  # Slightly increase step size for next iteration
+
+        # Convergence criteria
+        if np.linalg.norm(step) < tolerance:
+            print("Convergence reached.")
+            break
+
+        if iteration % 20 == 0:
+            solutions.to_csv('solutions.csv', index=False)
+
+    # Final saving of solutions
+    solutions.to_csv('solutions.csv', index=False)
+    elapsed_time = time.time() - start_time
+    print(f"Total time for Line Search Gradient Descent: {elapsed_time:.4f} seconds")
+    return params, history_df, solutions
+
+
+
+
+def adam_optimizer(true_solution, initial_params, weights , obj_mode = 0, learning_rate=1e-2, tolerance=1e-4, max_iterations=100, beta1=0.9, beta2=0.99, eps=0.1):
+    params = np.array(initial_params, dtype=float)
+    m = np.zeros_like(params)
+    v = np.zeros_like(params)
+    columns = ['Iteration', 'RMSE', 'Gradient'] + [f'Param_{i+1}' for i in range(len(params))] + ['Step', 'Mean_Gradient', 'Variance_Gradient']
+    hist = pd.DataFrame(columns=columns)
+    start_time = time.time()
+    solutions = pd.DataFrame([])
+
+    for iteration in range(1, max_iterations + 1):
+    
+        if iteration%50==0:
+           print(f"\nIteration {iteration}: Parameters = {params}")
+        run_AUTO(params, eps, verbosity = 0)
+
+        rmse, solution = compute_objective_func(true_solution, 's.mu', store_solution=1, mode = obj_mode)
+        print(f"RMSE = {rmse}")
+
+        solution.Index_solution = iteration
+        solutions = pd.concat([solutions, solution], ignore_index=True)
+
+        grad = np.zeros_like(params)
+        for i in range(len(params)):
+            rmse_front, _ = compute_objective_func(true_solution, f's.eps{i+1}_front', mode = obj_mode)
+            rmse_back, _ = compute_objective_func(true_solution, f's.eps{i+1}_back', mode = obj_mode)
+            grad[i] = (rmse_front - rmse_back) / (2*eps)
+
+
+        m = beta1 * m + (1 - beta1) * grad
+        v = beta2 * v + (1 - beta2) * (grad ** 2)
+        m_hat = m / (1 - beta1 ** iteration)
+        v_hat = v / (1 - beta2 ** iteration)
+
+        step = learning_rate * m_hat / (np.sqrt(v_hat) + 1e-8)
+
+        row_data = [iteration, rmse, grad] + list(params) + [step, m, v]
+        hist = pd.concat([hist, pd.DataFrame([row_data], columns=columns)], ignore_index=True)
+
+        params = params - step * weights
+
+        if np.linalg.norm(step) < tolerance:
+            print("Convergence reached.")
+            break
+        if iteration%20==0:
+            solutions.to_csv('solutions.csv', index=False)
+            hist.to_csv('output/hist.csv', index=False)
+
+    solutions.to_csv('solutions.csv', index=False)
+    elapsed_time = time.time() - start_time
+    print(f"Total time for Adam optimizer: {elapsed_time:.4f} seconds")
+    return params, hist, solutions
+
+
+
+#=================
+# AUTO ribbon
+#=================
+
+
+#-------------twist------------------
+#true_solution = pd.read_csv('true_solution_twist.csv')
+
+#initial_guess = np.array([1,60])
+
+#wieghts = np.array([1, 1])
+#final_params_0, hist_0, solutions_0 = adam_optimizer(true_solution, initial_guess, wieghts, obj_mode = 3, learning_rate=0.05, tolerance=1e-4, max_iterations=400, beta1=0.9, beta2=0.99, eps=0.1)
+#hist_0.to_csv('output/hist_0.csv', index=False)
+#solutions_0.to_csv('output/solutions_0.csv', index=False)
+
+#final_params_0 = final_params_0 + 0.5
+
+#final_params_1, hist_1, solutions_1 = line_search_gradient_descent(true_solution, final_params_0, initial_lr=0.1, tolerance=1e-4, max_iterations=100, beta=0.0, eps=0.1)
+#hist_1.to_csv('output/hist_1.csv', index=False)
+#solutions_1.to_csv('output/solutions_1.csv', index=False)
+
+
+
+
+
+#-------------sshape------------------
+true_solution = pd.read_csv('true_solution_sshape.csv')
+
+initial_guess = np.array([11, 64, 6.1, -1, 96, 3.75])
+
+wieghts = np.array([1, 1, 1, 1, 1, 1])
+final_params_0, hist_0, solutions_0 = adam_optimizer(true_solution, initial_guess, wieghts, obj_mode = 1, learning_rate=0.5, tolerance=1e-4, max_iterations=400, beta1=0.9, beta2=0.99, eps=0.1)
+hist_0.to_csv('output/hist_0.csv', index=False)
+solutions_0.to_csv('output/solutions_0.csv', index=False)
+
+min_index = hist_0["RMSE"].idxmin()
+final_params_0 = hist_0.loc[min_index, [f"Param_{i}" for i in range(1, len(initial_guess)+1)]].to_numpy()
+
+
+wieghts = np.array([1, 1, 1, 1, 1, 1])
+final_params_1, hist_1, solutions_1 = adam_optimizer(true_solution, final_params_0, wieghts, obj_mode = 2, learning_rate=0.01, tolerance=1e-4, max_iterations=300, beta1=0.9, beta2=0.99, eps=0.1)
+hist_1.to_csv('output/hist_1.csv', index=False)
+solutions_1.to_csv('output/solutions_1.csv', index=False)
+
+#min_index = hist_1["RMSE"].idxmin()
+#final_params_1 = hist_1.loc[min_index, [f"Param_{i}" for i in range(1, len(initial_guess)+1)]].to_numpy()
+
+
+wieghts = np.array([0, 0, 0, 1, 0, 0])
+final_params_2, hist_2, solutions_2 = adam_optimizer(true_solution, final_params_1, wieghts, obj_mode = 2, learning_rate=0.01, tolerance=1e-4, max_iterations=100, beta1=0.9, beta2=0.99, eps=0.1)
+hist_2.to_csv('output/hist_2.csv', index=False)
+solutions_2.to_csv('output/solutions_2.csv', index=False)
+
+wieghts = np.array([1, 0, 0, 0, 0, 0])
+final_params_3, hist_3, solutions_3 = adam_optimizer(true_solution, final_params_2, wieghts, obj_mode = 2, learning_rate=0.01, tolerance=1e-4, max_iterations=100, beta1=0.9, beta2=0.99, eps=0.1)
+hist_3.to_csv('output/hist_3.csv', index=False)
+solutions_3.to_csv('output/solutions_3.csv', index=False)
+
+wieghts = np.array([1, 1, 1, 1, 1, 1])
+final_params_4, hist_4, solutions_4 = adam_optimizer(true_solution, final_params_3, wieghts, obj_mode = 2, learning_rate=0.01, tolerance=1e-4, max_iterations=200, beta1=0.6, beta2=0.99, eps=0.1)
+hist_4.to_csv('output/hist_4.csv', index=False)
+solutions_4.to_csv('output/solutions_4.csv', index=False)
+
+final_params_5, hist_5, solutions_5 = line_search_gradient_descent(true_solution, final_params_4, initial_lr=0.1, tolerance=1e-4, max_iterations=50, beta=0.0, eps=0.1)
+hist_5.to_csv('output/hist_5.csv', index=False)
+solutions_5.to_csv('output/solutions_5.csv', index=False)
+
+
+#-------------comb------------------
+#true_solution = pd.read_csv('true_solution_comb.csv')
+
+#initial_guess = np.array([11, 64, 6.1, -1, 96, 3.75, 0.1, 60])
+
+#wieghts = np.array([0, 0, 0, 0, 0, 0, 1, 1])
+#final_params_0, hist_0, solutions_0 = adam_optimizer(true_solution, initial_guess, wieghts, obj_mode = 3, learning_rate=0.05, tolerance=1e-4, max_iterations=400, beta1=0.9, beta2=0.99, eps=0.1)
+#hist_0.to_csv('output/hist_0.csv', index=False)
+#solutions_0.to_csv('output/solutions_0.csv', index=False)
+
+#min_index = hist_0["RMSE"].idxmin()
+#final_params_0 = hist_0.loc[min_index, [f"Param_{i}" for i in range(1, len(initial_guess)+1)]].to_numpy()
+
+
+#wieghts = np.array([1, 1, 1, 1, 1, 1, 0, 0])
+#final_params_1, hist_1, solutions_1 = adam_optimizer(true_solution, final_params_0, wieghts, obj_mode = 1, learning_rate=0.2, tolerance=1e-4, max_iterations=1000, beta1=0.9, beta2=0.99, eps=0.1)
+#hist_1.to_csv('output/hist_1.csv', index=False)
+#solutions_1.to_csv('output/solutions_1.csv', index=False)
+
+#min_index = hist_1["RMSE"].idxmin()
+#final_params_1 = hist_1.loc[min_index, [f"Param_{i}" for i in range(1, len(initial_guess)+1)]].to_numpy()
+
+
+#wieghts = np.array([1, 1, 1, 1, 1, 1, 0, 0])
+#final_params_2, hist_2, solutions_2 = adam_optimizer(true_solution, final_params_1, wieghts, obj_mode = 2, learning_rate=0.1, tolerance=1e-4, max_iterations=200, beta1=0.9, beta2=0.99, eps=0.1)
+#hist_2.to_csv('output/hist_2.csv', index=False)
+#solutions_2.to_csv('output/solutions_2.csv', index=False)
+
+#wieghts = np.array([1, 0, 0, 1, 0, 0, 0, 0])
+#final_params_3, hist_3, solutions_3 = adam_optimizer(true_solution, final_params_2, wieghts, obj_mode = 2, learning_rate=0.1, tolerance=1e-4, max_iterations=100, beta1=0.9, beta2=0.99, eps=0.1)
+#hist_3.to_csv('output/hist_3.csv', index=False)
+#solutions_3.to_csv('output/solutions_3.csv', index=False)
+
+#wieghts = np.array([1, 1, 1, 1, 1, 1, 1, 1])
+#final_params_4, hist_4, solutions_4 = adam_optimizer(true_solution, final_params_3, wieghts, obj_mode = 4, learning_rate=0.1, tolerance=1e-4, max_iterations=800, beta1=0.9, beta2=0.99, eps=0.1)
+#hist_4.to_csv('output/hist_4.csv', index=False)
+#solutions_4.to_csv('output/solutions_4.csv', index=False)
+
+#min_index = hist_4["RMSE"].idxmin()
+#final_params_4 = hist_4.loc[min_index, [f"Param_{i}" for i in range(1, len(initial_guess)+1)]].to_numpy()
+
+#final_params_5, hist_5, solutions_5 = line_search_gradient_descent(true_solution, final_params_4, initial_lr=0.1, tolerance=1e-6, max_iterations=100, beta=0.0, eps=0.1)
+#hist_5.to_csv('output/hist_5.csv', index=False)
+#solutions_5.to_csv('output/solutions_5.csv', index=False)
+
+wait()
+#clean the directory
+clean()
+
