@@ -1111,41 +1111,141 @@ def skew_rotation(axis, angle):
         (1 - np.cos(angle)) * np.outer(axis, axis)
     )
     
-def plot_trajectory(path_points, show=True, color='b', label='Trajectory'):
-    """Plot 3D trajectory with start/end markers.
+def plot_trajectory(path_points, show=True, color='b', label='Trajectory', 
+                   normal_array=None, n_frames=10, frame_scale=0.1, 
+                   show_tangent=True, show_normal=True, show_binormal=True):
+    """Plot 3D trajectory with start/end markers and optional Cosserat frames.
     
     Args:
         path_points: Array of 3D points
         show: Whether to display plot
         color: Line color
         label: Plot label
+        normal_array: Array of normal vectors at each point (3 x n_points)
+        n_frames: Number of frames to display along the curve
+        frame_scale: Scale factor for frame vectors
+        show_tangent: Whether to show tangent vectors (red)
+        show_normal: Whether to show normal vectors (green)
+        show_binormal: Whether to show binormal vectors (blue)
     """
-    fig = plt.figure(figsize=(8, 6))
+    fig = plt.figure(figsize=(12, 8))
     ax = fig.add_subplot(111, projection='3d')
     
     path_points = np.array(path_points).T
-    ax.scatter(path_points[:, 0], path_points[:, 1], path_points[:, 2], color=color, s = 1, label=label)
-
+    ax.scatter(path_points[:, 0], path_points[:, 1], path_points[:, 2], 
+               color=color, s=1, label=label)
+    
     # Mark start and end
-    ax.scatter(*path_points[0], color='green', s=20, label='Start')
-    ax.scatter(*path_points[-1], color='red', s=20, label='End')
-
+    ax.scatter(*path_points[0], color='green', s=50, label='Start', marker='o')
+    ax.scatter(*path_points[-1], color='red', s=50, label='End', marker='s')
+    
+    # Add Cosserat frames if normal array is provided
+    if normal_array is not None:
+        plot_cosserat_frames(ax, path_points, normal_array, n_frames, frame_scale)
+    
     ax.set_xlabel('X')
     ax.set_ylabel('Y')
     ax.set_zlabel('Z')
-    limit = np.max(abs(path_points))
+    
+    limit = np.max(np.abs(path_points))
     
     ax.set_xlim([-limit, limit])
     ax.set_ylim([-limit, limit])
     ax.set_zlim([-limit, limit])
     
-    ax.set_title('Discretized 3D Path')
+    ax.set_title('3D Trajectory check')
     ax.legend()
     ax.grid(True)
     
     if show:
         plt.tight_layout()
         plt.show()
+
+def compute_tangent_vectors(path_points):
+    """Compute tangent vectors along the curve using finite differences.
+    
+    Args:
+        path_points: Array of 3D points (n_points x 3)
+        
+    Returns:
+        tangent_vectors: Normalized tangent vectors (n_points x 3)
+    """
+    n_points = len(path_points)
+    tangent_vectors = np.zeros((n_points-1,3))
+
+    # Central difference for middle points
+    for i in range(0, n_points-1):
+        tangent_vectors[i] = path_points[i+1] - path_points[i]
+    
+    # Normalize tangent vectors
+    norms = np.linalg.norm(tangent_vectors, axis=1, keepdims=True)
+    tangent_vectors = tangent_vectors / norms
+    
+    return tangent_vectors
+
+def compute_binormal_vectors(tangent_vectors, normal_vectors):
+    """Compute binormal vectors using cross product of tangent and normal.
+    
+    Args:
+        tangent_vectors: Normalized tangent vectors (n_points x 3)
+        normal_vectors: Normalized normal vectors (n_points x 3)
+        
+    Returns:
+        binormal_vectors: Normalized binormal vectors (n_points x 3)
+    """
+    binormal_vectors = np.cross(tangent_vectors, normal_vectors)
+    
+    # Normalize binormal vectors
+    norms = np.linalg.norm(binormal_vectors, axis=1, keepdims=True)
+    norms[norms == 0] = 1  # Avoid division by zero
+    binormal_vectors = binormal_vectors / norms
+    
+    return binormal_vectors
+
+def plot_cosserat_frames(ax, path_points, normal_array, n_frames, frame_scale):
+    """Plot Cosserat frames along the trajectory.
+    
+    Args:
+        ax: Matplotlib 3D axis
+        path_points: Array of 3D points (n_points x 3)
+        normal_array: Array of normal vectors (3 x n_points)
+        n_frames: Number of frames to display
+        frame_scale: Scale factor for frame vectors
+        show_tangent: Whether to show tangent vectors
+        show_normal: Whether to show normal vectors
+        show_binormal: Whether to show binormal vectors
+    """
+    n_points = len(path_points)
+    
+    # Convert normal array to proper format (n_points-1 x 3)
+    normal_vectors = normal_array.T
+    
+    # Compute tangent vectors
+    tangent_vectors = compute_tangent_vectors(path_points)
+    
+    # Compute binormal vectors
+    binormal_vectors = compute_binormal_vectors(tangent_vectors, normal_vectors)
+    
+    # Plot frames at selected points
+    for i in np.linspace(0, n_points - 2, n_frames, dtype=int):
+        origin = path_points[i]
+
+        tangent = tangent_vectors[i] * frame_scale
+        ax.quiver(origin[0], origin[1], origin[2],
+                 tangent[0], tangent[1], tangent[2],
+                 color='red', alpha=0.8, arrow_length_ratio=0.1)
+    
+
+        normal = normal_vectors[i] * frame_scale
+        ax.quiver(origin[0], origin[1], origin[2],
+                 normal[0], normal[1], normal[2],
+                 color='green', alpha=0.8, arrow_length_ratio=0.1)
+    
+
+        binormal = binormal_vectors[i] * frame_scale
+        ax.quiver(origin[0], origin[1], origin[2],
+                 binormal[0], binormal[1], binormal[2],
+                 color='blue', alpha=0.8, arrow_length_ratio=0.1)
 
 
 def color_function(f1, m3, n_points_width, a):
