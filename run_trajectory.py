@@ -19,7 +19,7 @@ path_plan['twist (rad/mm)'] = [np.pi/20, 0, 0,0,0, -np.pi/20,0]
 
 M = 50 # number of step in a path
 min_length = 5
-final_time = 0.1
+final_time = 0.2
 kp=1.2
 
 
