@@ -687,7 +687,7 @@ def _calculate_contact_forces_ribbon_sleeve(
 
     
     # Hyperelastic contact force from Ogden model
-    magnitude_hyperelastic_force = _calculate_contact_force_Ogden_model(normal_displacement_sleeve, k, alpha, width, poisson_ratio)*lengths/width
+    magnitude_hyperelastic_force = _calculate_contact_force_Ogden_model(normal_displacement_sleeve, k, alpha, width/2, poisson_ratio)*lengths/width
     hyperelastic_force = _batch_product_k_ik_to_ik(magnitude_hyperelastic_force, normal_collection_sleeve)
 
     # Damping force from normal velocity
@@ -695,11 +695,16 @@ def _calculate_contact_forces_ribbon_sleeve(
     normal_velocity_component = _batch_dot(normal_collection_sleeve, element_velocity)
     damping_force = -nu * _batch_product_k_ik_to_ik(normal_velocity_component, normal_collection_sleeve)
 
-    # Total plane response force
-    response_force_sleeve[:, :] = _batch_product_k_ik_to_ik(1/(lengths*width),(hyperelastic_force + damping_force))
+    # Total sleeve response force
+    response_force_sleeve[:, :] = hyperelastic_force + damping_force
 
     # Map element forces back to nodes and add the sleeve response to the external forces
     _elements_to_nodes_inplace(response_force_sleeve, external_forces)
+
+    #scale the response force for the callback function
+    response_force_sleeve[:, :] = _batch_product_k_ik_to_ik(1/(lengths*width),(hyperelastic_force + damping_force))
+
+    
 
 
 
@@ -761,7 +766,7 @@ def _calculate_contact_torques_ribbon_sleeve(
     # Twist torque computation
     penetration_twist = np.arcsin(sin_twist[:, None]) * twist_grid
     forces_twist = _calculate_contact_force_Ogden_model_batch(
-        penetration_twist, k, alpha, width, poisson_ratio
+        penetration_twist, k, alpha, width/2, poisson_ratio
     ) * (length[:, None] / width[:, None])
     
     response_couple_local[2, :] = np.sum(forces_twist * twist_grid * w_grid, axis=1)
@@ -770,7 +775,7 @@ def _calculate_contact_torques_ribbon_sleeve(
     # Bend torque computation
     penetration_bend = np.arcsin(sin_bend[:, None]) * bend_grid
     forces_bend = _calculate_contact_force_Ogden_model_batch(
-        penetration_bend, k, alpha, width, poisson_ratio
+        penetration_bend, k, alpha, width/2, poisson_ratio
     ) * (length[:, None] / width[:, None])
     
     response_couple_local[1, :] = np.sum(forces_bend * bend_grid * w_grid, axis=1)
@@ -784,6 +789,7 @@ def _calculate_contact_torques_ribbon_sleeve(
     rotation_sleeve[1, :] = sin_bend
     rotation_sleeve[2, :] = sin_twist
     external_torques += couple_lab
+    
 
 
 @numba.njit(cache=True)
@@ -818,7 +824,6 @@ def _calculate_contact_force_Ogden_model_batch(
             # a = r ** (0.503 - 3.97e-6 * d) * d ** 0.498
             a = r[i] ** 0.5 * d ** 0.5 
             scale = 40 * k / (9 * alpha * (1 - poisson_ratio ** 2))
-            factor = (1 - 0.2 * d / r[i])
             magnitude = scale * a**2 * (
                 (1 - 0.2 * a / r[i]) ** (-alpha / 2 - 1)
                 - (1 - 0.2 * a / r[i]) ** (alpha - 1)

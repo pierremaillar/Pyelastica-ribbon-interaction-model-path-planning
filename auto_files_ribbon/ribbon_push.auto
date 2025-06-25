@@ -1,0 +1,19 @@
+#=================
+# AUTO ribbon
+#=================
+
+# Load the files ribbon.f90 and c.ribbon into the AUTO
+# command interpreter.
+
+ribbon_rest = load('ribbon_rest')
+rest = run(ribbon_rest)
+save(rest, 'rest')
+
+ribbon_push = load('ribbon_push')
+push = run(ribbon_push)
+save(push, 'push')
+
+wait()
+#clean the directory
+clean()
+

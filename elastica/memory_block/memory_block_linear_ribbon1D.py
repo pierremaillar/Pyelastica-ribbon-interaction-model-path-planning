@@ -234,7 +234,6 @@ class MemoryBlockLinearRibbon1D(
             "position_collection": 0,
             "internal_forces": 1,
             "external_forces": 2,
-            "damping_forces": 3,
         }
         self.vector_dofs_in_rod_nodes = np.zeros(
             (len(map_vector_dofs_in_rod_nodes), 3 * self.n_nodes)
@@ -296,10 +295,6 @@ class MemoryBlockLinearRibbon1D(
             #"rest_area": 6,
             "dilatation": 6,
             "dilatation_rate": 7,
-            "dissipation_constant_for_forces": 8,
-            "dissipation_constant_for_torques": 9,
-            "phi": 10,
-            "phi_p": 11,
         }
         self.scalar_dofs_in_rod_elems = np.zeros(
             (len(map_scalar_dofs_in_rod_elems), self.n_elems)
@@ -336,8 +331,7 @@ class MemoryBlockLinearRibbon1D(
             "rest_sigma": 2,
             "internal_torques": 3,
             "external_torques": 4,
-            "damping_torques": 5,
-            "internal_stress": 6,
+            "internal_stress": 5,
         }
         self.vector_dofs_in_rod_elems = np.zeros(
             (len(map_vector_dofs_in_rod_elems), 3 * self.n_elems)
@@ -370,6 +364,7 @@ class MemoryBlockLinearRibbon1D(
             "mass_second_moment_of_inertia": 1,
             "inv_mass_second_moment_of_inertia": 2,
             "shear_matrix": 3,
+            "bend_constants":4,
         }
         self.matrix_dofs_in_rod_elems = np.zeros(
             (len(map_matrix_dofs_in_rod_elems), 9 * self.n_elems)
