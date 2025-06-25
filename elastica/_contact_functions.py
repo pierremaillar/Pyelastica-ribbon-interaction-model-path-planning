@@ -824,7 +824,6 @@ def _calculate_contact_force_Ogden_model_batch(
             # a = r ** (0.503 - 3.97e-6 * d) * d ** 0.498
             a = r[i] ** 0.5 * d ** 0.5 
             scale = 40 * k / (9 * alpha * (1 - poisson_ratio ** 2))
-            factor = (1 - 0.2 * d / r[i])
             magnitude = scale * a**2 * (
                 (1 - 0.2 * a / r[i]) ** (-alpha / 2 - 1)
                 - (1 - 0.2 * a / r[i]) ** (alpha - 1)
