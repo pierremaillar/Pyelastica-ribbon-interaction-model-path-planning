@@ -233,7 +233,7 @@ class Ribbon1D(RodBase, KnotTheory):
             youngs_modulus,
             shear_modulus,
             poisson_ratio,
-            alpha_c=4.0/3.0,
+            alpha_c=3.0/2.0,
             *args,
             **kwargs,
         )

@@ -1106,11 +1106,11 @@ def allocate_ribbon(
 
     # Second moment of inertia
     A0 = width*thickness
-    I0_1 = width*thickness**3/12
+    I0_1 = thickness*width**3/12
     I0_2 = thickness**3*width/12
     I0_3 = I0_1 + I0_2
     I0 = np.array([I0_1, I0_2, I0_3]).transpose()
-    # Mass second moment of inertia for disk cross-section
+    # Mass second moment of inertia for rectangular cross-section
     mass_second_moment_of_inertia = np.zeros(
         (MaxDimension.value(), MaxDimension.value(), n_elements), np.float64
     )
