@@ -390,12 +390,6 @@ external_forces
             ).sum()
         )
 
-    def compute_rotational_energy(self):
-        J_omega_upon_e = (
-            _batch_matvec(self.mass_second_moment_of_inertia, self.omega_collection)
-            / self.dilatation
-        )
-        return 0.5 * np.einsum("ik,ik->k", self.omega_collection, J_omega_upon_e).sum()
 
     def compute_velocity_center_of_mass(self):
         mass_times_velocity = np.einsum("j,ij->ij", self.mass, self.velocity_collection)
@@ -409,19 +403,17 @@ external_forces
 
         return sum_mass_times_position / self.mass.sum()
 
-    def compute_bending_energy(self):
-        kappa_diff = self.kappa - self.rest_kappa
 
-        return 0
+## the function to compute energy are not adapted for the ribbon model as they are not used in the current framework
+## Make sure to implement them correctly if you intend to use them
+    def compute_rotational_energy(self):
+        return 0.0
+
+    def compute_bending_energy(self):
+        return 0.0
 
     def compute_shear_energy(self):
-        sigma_diff = self.sigma - self.rest_sigma
-        shear_internal_torques = _batch_matvec(self.shear_matrix, sigma_diff)
-
-        return (
-            0.5
-            * (_batch_dot(sigma_diff, shear_internal_torques) * self.rest_lengths).sum()
-        )
+        return 0.0
 
 
 @numba.njit(cache=True)
