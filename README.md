@@ -126,8 +126,8 @@ For detailed technical documentation, see the complete user guide (`User_guide__
 ## Citation
 
 Based on the 1D ribbon model from:
-> Audoly, B., & Neukirch, S. (2021). A one-dimensional model for elastic ribbons: A little stretching makes a big difference. *Journal of the Mechanics and Physics of Solids*, 153, 104457.
-
+> Audoly, B., & Neukirch, S. (2021). A one-dimensional model for elastic ribbons: A little stretching makes a big difference. *Journal of the Mechanics and Physics of Solids*, 153, 104457. https://doi.org/10.1016/j.jmps.2021.104457
+>
 Built on PyElastica framework:
 > Tekinalp, A., Kim, S. H., Bhosale, Y., Parthasarathy, T., Naughton, N., Albazroun, A., ... & Gazzola, M. (2024). GazzolaLab/PyElastica: v0.3.2 (Version v0.3.2). Zenodo. https://doi.org/10.5281/zenodo.10883271
 > 
