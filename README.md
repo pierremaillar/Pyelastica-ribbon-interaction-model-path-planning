@@ -64,7 +64,7 @@ The framework provides several script types:
 1. Configure simulation parameters in a `run_*.py` script
 2. Submit to cluster: `sbatch sim_trajectory.run`
 3. Monitor progress: `squeue` and `sjob {job_id}`
-4. Analyze results using provided visualization tools
+4. Analyze results using provided visualization tools (see Jupyter notebooks guides)
 
 ## Key Components
 
@@ -74,20 +74,16 @@ The framework provides several script types:
 - Compatible with PyElastica's time-stepping framework
 
 ### Sleeve Contact Model
-- Hyperelastic contact forces using Ogden model
+- Hyperelastic contact forces using indentation on Ogden hyperelastic media law's
 - Torque computation for bending and twisting resistance
-- Quasi-static equilibrium solver
 
-### Memory Block Architecture
-- Optimized contiguous memory allocation
-- Numba JIT compilation for performance
-- Vectorized operations across multiple ribbons
 
 ## Performance Notes
+Based on the Jed-SCITAS cluster tests:
 
 - **Recommended**: 16 CPU cores per simulation
 - **Runtime**: ~6 hours for complete trajectory analysis
-- **Stability**: Requires small time steps due to explicit integration
+- **Stability**: Requires small time steps due to explicit time integration
 - **Convergence**: Manual tuning of end time and damping required
 
 ## Cluster Usage
@@ -112,18 +108,15 @@ pip install -U -r requirements.txt
 sbatch sim_trajectory.run
 ```
 
-## Limitations
+## Main limitations
 
 - **Contact Model**: Simplified Ogden-type indentation assumptions
-- **Time Integration**: Explicit scheme requires very small time steps
 - **Convergence**: Manual monitoring required for quasi-static equilibrium
-- **Angles**: Large deformation accuracy limited for twist/bend > 45°
 
 ## Future Improvements
 
 - FEM-based contact model for improved accuracy
 - Adaptive time stepping with automatic convergence criteria
-- GPU parallelization for enhanced performance
 - Better load balancing for cluster computing
 
 ## Documentation
@@ -135,11 +128,14 @@ For detailed technical documentation, see the complete user guide (`User_guide__
 Based on the 1D ribbon model from:
 > Audoly, B., & Neukirch, S. (2021). A one-dimensional model for elastic ribbons: A little stretching makes a big difference. *Journal of the Mechanics and Physics of Solids*, 153, 104457.
 
+Built on PyElastica framework:
+> Tekinalp, A., Kim, S. H., Bhosale, Y., Parthasarathy, T., Naughton, N., Albazroun, A., ... & Gazzola, M. (2024). GazzolaLab/PyElastica: v0.3.2 (Version v0.3.2). Zenodo. https://doi.org/10.5281/zenodo.10883271
+> 
 ## Contact
 
-**Author**: Pierre Maillard  
-**Institution**: Master student in Mechanical Engineering  
-**Supervisor**: Lorenzo Noseda  
+**Author**: Pierre Maillard - <pierre.maillard@epfl.ch>
+**Institution**: Master student in Mechanical Engineering at EPFL
+**Supervisor**: Lorenzo Noseda - <lorenzo.noseda@epfl.ch>
 **Date**: June 26, 2025
 
 ---
