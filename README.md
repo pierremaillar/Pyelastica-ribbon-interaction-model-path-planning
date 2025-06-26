@@ -12,7 +12,7 @@ This project implements a numerical simulation framework for analyzing stresses 
 - **Hyperelastic Contact**: Ogden-type contact forces for ribbon-medium interaction
 - **Quasi-static Analysis**: Optimized for obtaining static equilibrium configurations
 - **Cluster Computing**: Designed for high-performance computing environments
-- 
+  
 ## Installation
 
 **Required packages:**
