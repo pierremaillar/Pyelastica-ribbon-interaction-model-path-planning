@@ -12,7 +12,7 @@ This project implements a numerical simulation framework for analyzing stresses 
 - **Hyperelastic Contact**: Ogden-type contact forces for ribbon-medium interaction
 - **Quasi-static Analysis**: Optimized for obtaining static equilibrium configurations
 - **Cluster Computing**: Designed for high-performance computing environments
-
+- 
 ## Installation
 
 **Required packages:**
@@ -50,7 +50,7 @@ Follow the Jupyter notebooks guide:
 - **`Noto_elastica_ribbon_model.ipynb`**: How to setup and use the Ribbon model for simple load cases.
 - **`Noto_elastica_sleeve_interaction.ipynb`**: How to implement the media interaction using the `Sleeve` object. 
 - **`Noto_elastica_full_trajectory.ipynb`**: How to perform a full trajectory analysis.
-- 
+  
 ### Basic Simulation
 
 The framework provides several script types:
@@ -133,10 +133,10 @@ Built on PyElastica framework:
 > 
 ## Contact
 
-**Author**: Pierre Maillard - <pierre.maillard@epfl.ch>
-**Institution**: Master student in Mechanical Engineering at EPFL
-**Supervisor**: Lorenzo Noseda - <lorenzo.noseda@epfl.ch>
-**Date**: June 26, 2025
+- **Author**: Pierre Maillard - <pierre.maillard@epfl.ch>
+- **Institution**: Master student in Mechanical Engineering at EPFL
+- **Supervisor**: Lorenzo Noseda - <lorenzo.noseda@epfl.ch>
+- **Date**: June 26, 2025
 
 ---
 
