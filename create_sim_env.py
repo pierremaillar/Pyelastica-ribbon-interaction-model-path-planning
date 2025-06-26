@@ -165,7 +165,7 @@ def create_env(initial_position,d1_initial, position_sleeve, d1_sleeve,
         width,
         density,
         youngs_modulus=E,
-        shear_modulus=E*num_lagrange, # influence the shearability of the ribbon
+        shear_modulus=E*num_lagrange, # influence the shearability and strechability of the ribbon
         poisson_ratio=0.34,
         position = initial_position,
         directors = directors,

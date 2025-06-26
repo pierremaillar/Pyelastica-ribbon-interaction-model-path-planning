@@ -1261,7 +1261,7 @@ def color_function(f1, m3, n_points_width, a):
         Array of stress values in kPa
     """
 
-    #reconstruct stress distribution so that we have a resulting for of f1 and a resulting twisting couple of m3
+    #reconstruct stress distribution so that we have a resulting force of f1 and a resulting twisting couple of m3
     stress = np.linspace(a/2,-a/2,n_points_width)*12*m3/a**2+f1
     stress /=1e3
     return stress
@@ -1446,8 +1446,10 @@ def Plot_stress_field(solutions, solutions_sleeve, path, L, a, n_points=20, axes
         
         f_n = rx*d1[0] + ry*d1[1] + rz*d1[2]
         m3 = mx*d3[0] + my*d3[1] + mz*d3[2]
-        
-        colors.append([color_function(f_n*1e6, m3*1e6,n_points, a)])
+
+        #apply rescaling to go from [N/mm^2] to [N/m^2]. Note that we also scale m3 by 1e6 (eventhough it is only [N/m])
+        # because the function color_function will then divide it by the width a [mm].
+        colors.append([color_function(f_n*1e6, m3*1e6,n_points, a)]) 
 
     # Convert to numpy arrays for surface plotting
     X_surf = np.array(X_surf)

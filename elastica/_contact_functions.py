@@ -784,10 +784,11 @@ def _calculate_contact_torques_ribbon_sleeve(
     # Project to lab frame 
     couple_lab = _batch_matvec(_batch_matrix_transpose(director_collection), response_couple_local)
 
-    # Save results
+    #scale the response couple for the callback function
     response_couple_sleeve[:, :] = _batch_product_k_ik_to_ik(1/(length*width),couple_lab)
     rotation_sleeve[1, :] = sin_bend
     rotation_sleeve[2, :] = sin_twist
+    #apply torques
     external_torques += couple_lab
     
 
