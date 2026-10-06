@@ -94,8 +94,6 @@ PyElastica is a dynamic solver, so a static equilibrium is obtained by relaxatio
 - **Force control**: a proportional controller adjusts the axial pushing force at the base so that the force at the tip converges to the crack-propagation force.
 - **Convergence**: the end time is tuned manually. Check that the tip force has converged, that positions and directors no longer evolve, and that shear/stretch strains remain negligible.
 
-![Schematic of a Quasi-static simulation step](schematic_quasistatic.png)
-
 
 ## Tissue Interaction (Sleeve)
 
