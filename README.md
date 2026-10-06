@@ -110,7 +110,6 @@ See the user guide for the full variable list and the limitations of the model.
 - The tissue is treated as homogeneous and isotropic, with a fixed crack length. Crack propagation is represented only through the prescribed tip force.
 - The 3D interaction is approximated by a 2D problem applied independently to each element, which is valid for smooth deformations (small curvature and tissue deformation).
 - Indentation and twist were characterized separately, so their coupling is neglected. Tangential interactions (friction) are not modeled.
-- Twist and bend angles are computed from the sine of projected cross products, which is only reliable for moderate angles.
 - Convergence to equilibrium relies on a manually tuned end time. There is no automatic stopping criterion.
 - Explicit time integration requires small time steps.
 
@@ -122,7 +121,7 @@ For detailed technical documentation, see the user guide (`User_guide_elastica_r
 
 If you use this code, please cite:
 
-<!-- TODO: add the reference of the paper once available -->
+<!-- add the reference of the paper once available -->
 
 and the works it builds on:
 
