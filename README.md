@@ -33,7 +33,7 @@ Requires Python ≥ 3.10 (needed by the pinned numpy/scipy versions).
 | kaleido    | 0.2.1   |
 
 ```bash
-git clone https://github.com/pierremaillar/Ribbon_path_planning_tissue_interaction_pyelastica.git
+git clone https://github.com/pierremaillar/Pyelastica-ribbon-interaction-model-path-planning.git
 cd Ribbon_path_planning_tissue_interaction_pyelastica
 pip install -U -r requirements.txt
 ```
@@ -93,6 +93,9 @@ PyElastica is a dynamic solver, so a static equilibrium is obtained by relaxatio
 - **Boundary conditions**: the tip is clamped at the target pose of the step, and the base slides along the insertion axis.
 - **Force control**: a proportional controller adjusts the axial pushing force at the base so that the force at the tip converges to the crack-propagation force.
 - **Convergence**: the end time is tuned manually. Check that the tip force has converged, that positions and directors no longer evolve, and that shear/stretch strains remain negligible.
+
+![Schematic of a Quasi-static simulation step](schematic_quasistatic.png)
+
 
 ## Tissue Interaction (Sleeve)
 
