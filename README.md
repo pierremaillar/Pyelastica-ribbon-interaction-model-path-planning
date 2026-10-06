@@ -29,7 +29,7 @@ This project implements a numerical simulation framework for analyzing stresses 
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/pierremaillar/Ribbon_interaction.git
+git clone https://github.com/pierremaillar/Ribbon_path_planning_tissue_interaction_pyelastica.git
 cd Ribbon_interaction
 ```
 
@@ -57,14 +57,12 @@ The framework provides several script types:
 
 - **`create_sim_env.py`**: Initialize simulation environment
 - **`run_*.py`**: Execute simulations with specific parameters
-- **`sim_*.run`**: Sbatch scripts for cluster submission
 
 ### Example Workflow
 
 1. Configure simulation parameters in a `run_*.py` script
-2. Submit to cluster: `sbatch sim_trajectory.run`
-3. Monitor progress: `squeue` and `sjob {job_id}`
-4. Analyze results using provided visualization tools (see Jupyter notebooks guides)
+2. run the simulation: `python run_*.py`
+3. Analyze results using provided visualization tools (see Jupyter notebooks guides)
 
 ## Key Components
 
@@ -77,51 +75,13 @@ The framework provides several script types:
 - Hyperelastic contact forces using indentation on Ogden hyperelastic media law's
 - Torque computation for bending and twisting resistance
 
-
-## Performance Notes
-Based on the Jed-SCITAS cluster tests:
-
-- **Recommended**: 16 CPU cores per simulation
-- **Runtime**: ~6 hours for complete trajectory analysis
-- **Stability**: Requires small time steps due to explicit time integration
-- **Convergence**: Manual tuning of end time and damping required
-
 ## Cluster Usage
 
 Compatible with SCITAS clusters (JED, Helvetios). See Section 7 of the user guide for detailed setup instructions.
 
-### Quick Start on Cluster
-```bash
-# Connect to cluster
-ssh username@jed.hpc.epfl.ch
-
-# Create environment
-python -m venv --system-site-packages venvs/ribbon-sim
-source venvs/ribbon-sim/bin/activate
-
-# Clone and setup
-git clone https://github.com/pierremaillar/Ribbon_interaction.git
-cd Ribbon_interaction
-pip install -U -r requirements.txt
-
-# Submit job
-sbatch sim_trajectory.run
-```
-
-## Main limitations
-
-- **Contact Model**: Simplified Ogden-type indentation assumptions
-- **Convergence**: Manual monitoring required for quasi-static equilibrium
-
-## Future Improvements
-
-- FEM-based contact model for improved accuracy
-- Adaptive time stepping with automatic convergence criteria
-- Better load balancing for cluster computing
-
 ## Documentation
 
-For detailed technical documentation, see the complete user guide (`User_guide___elastica___auto.pdf`).
+For detailed technical documentation, see the complete user guide (`User_guide_elastica_ribbon_interaction.pdf`).
 
 ## Citation
 

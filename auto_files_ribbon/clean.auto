@@ -1,9 +1,0 @@
-#===============
-# AUTO Demo cusp
-#===============
-
-print "\n***Clean the directory***"
-
-delete("etica")
-delete("mu")
-clean()

@@ -1,8 +1,0 @@
-type,length (mm),curvature (1/mm)
-line,10,0.0
-arc,5,0.2
-arc,5,0.3
-line,10,0.0
-arc,10,-0.4
-line,5,0.0
-arc,5,0.4
